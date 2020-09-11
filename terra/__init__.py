@@ -61,7 +61,6 @@ class Task:
             if not silence_task:
                 args_dict = getcallargs(fn, *args, **kwargs)
 
-                task_dir = self._get_task_dir(fn)
                 run_dir = _get_next_run_dir(self.task_dir)
                 args_dict["run_dir"] = run_dir
 

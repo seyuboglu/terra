@@ -144,6 +144,7 @@ def write_nparray(out, path):
     np.save(path, out)
     return path
 
+
 @reader(np.ndarray)
 def read_nparray(path):
     path = path + ".npy" if not path.endswith(".npy") else path
