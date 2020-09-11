@@ -1,5 +1,4 @@
 import os
-import sys
 
 
 def ensure_dir_exists(dir):

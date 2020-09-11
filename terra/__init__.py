@@ -1,12 +1,11 @@
 """ The `task` module provides a framework for running reproducible analyses."""
-
-import importlib
-import json
+from __future__ import annotations
 import os
 import traceback
 from datetime import datetime
 from functools import wraps
 from inspect import getcallargs
+
 
 from terra.git import log_git_status
 from terra.utils import ensure_dir_exists
@@ -21,7 +20,7 @@ class TerraSettings:
 
 class Task:
     @classmethod
-    def make_task(cls, fn):
+    def make_task(cls, fn: callable) -> Task:
         task = cls()
         task.task_dir = cls._get_task_dir(fn)
         task.fn = task._get_wrapper(fn)
@@ -37,10 +36,10 @@ class Task:
         )
         return task_dir
 
-    def inputs(self, run_idx=None):
+    def inp(self, run_idx=None):
         return
 
-    def outputs(self, run_idx=None):
+    def out(self, run_idx=None):
         if run_idx is None:
             run_idx = _get_latest_run_idx(self.task_dir)
         return json_load(
@@ -89,7 +88,6 @@ class Task:
                 # load node inputs
                 for key, value in args_dict.items():
                     if isinstance(value, Artifact):
-                        print("here2")
                         args_dict[key] = value.load()
 
                 try:

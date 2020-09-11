@@ -10,7 +10,7 @@ def _get_src_dump_path(run_dir, file_path):
     """ Hash the directory to avoid replicating folder structure of the repo within run_dir"""
     head, tail = os.path.split(file_path)
     file_name = f"{hashlib.sha256(head.encode('utf-8')).hexdigest()[:8]}_{tail}"
-    dump_path = os.path.join(run_dir, "_src", file_name)
+    dump_path = os.path.join(run_dir, "src", file_name)
     return dump_path
 
 
@@ -46,7 +46,7 @@ def log_git_status(run_dir, exts_to_dump=None) -> dict:
         if status != "D" and ext in exts_to_dump:
             # hash the directory to avoid replicating folder structure of the repo within run_dir
             dst_path = _get_src_dump_path(run_dir, dirty_path)
-            ensure_dir_exists(os.path.join(run_dir, "_src"))
+            ensure_dir_exists(os.path.join(run_dir, "src"))
             shutil.copy(src=os.path.join(top_level, dirty_path), dst=dst_path)
             dirty.append({"file": dirty_path, "status": status, "dumped": dst_path})
         else:
