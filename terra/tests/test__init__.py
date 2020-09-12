@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import tempfile
 
+
 from terra import Task, TerraSettings
+TerraSettings.notify = False
 
 
 def test_make_task(tmpdir):

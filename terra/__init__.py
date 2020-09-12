@@ -5,17 +5,19 @@ import traceback
 from datetime import datetime
 from functools import wraps
 from inspect import getcallargs
+import socket
 
 
 from terra.git import log_git_status
 from terra.utils import ensure_dir_exists
 from terra.logging import init_logging
 from terra.io import Artifact, json_dump, json_load
-
-
-class TerraSettings:
-
-    storage_dir = "/Users/sabrieyuboglu/code/terra/test_storage_dir"
+from terra.notify import (
+    notify_task_completed,
+    init_task_notifications,
+    notify_task_error,
+)
+from terra.settings import TerraSettings
 
 
 class Task:
@@ -68,6 +70,7 @@ class Task:
                     "git": log_git_status(run_dir),
                     "notebook": "get_ipython" in globals().keys(),
                     "start_time": datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f"),
+                    "hostname": socket.gethostname(),
                     "module": fn.__module__,
                     "fn": fn.__name__,
                 }
@@ -82,6 +85,7 @@ class Task:
                 )
 
                 init_logging(os.path.join(run_dir, "task.log"))
+                init_task_notifications(run_dir=run_dir)
                 print(f"task: running in directory {run_dir}")
 
                 # load node inputs
@@ -92,9 +96,12 @@ class Task:
                 try:
                     out = fn(**args_dict)
                 except (Exception, KeyboardInterrupt) as e:
-                    print(traceback.format_exc())
+                    msg = traceback.format_exc()
+                    notify_task_error(run_dir, msg)
+                    print(msg)
                     raise e
                 else:
+                    notify_task_completed(run_dir)
                     if out is not None:
                         json_dump(
                             out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
