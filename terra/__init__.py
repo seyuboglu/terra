@@ -26,6 +26,7 @@ class Task:
         task = cls()
         task.task_dir = cls._get_task_dir(fn)
         task.fn = task._get_wrapper(fn)
+        task.__name__ = fn.__name__
         return task
 
     @staticmethod
@@ -39,7 +40,13 @@ class Task:
         return task_dir
 
     def inp(self, run_idx=None):
-        return
+        if run_idx is None:
+            run_idx = _get_latest_run_idx(self.task_dir)
+        return json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_idx), "inputs.json"
+            )
+        )
 
     def out(self, run_idx=None):
         if run_idx is None:

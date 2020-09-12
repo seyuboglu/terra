@@ -9,7 +9,7 @@ run_to_ts = {}
 
 def init_task_notifications(run_dir: str):
     if not TerraSettings.notify:
-        return 
+        return
     client = WebClient(TerraSettings.slack_web_client_id)
 
     message = client.chat_postMessage(
@@ -27,7 +27,7 @@ def init_task_notifications(run_dir: str):
 
 def notify_task_completed(run_dir: str):
     if not TerraSettings.notify:
-        return 
+        return
     client = WebClient(TerraSettings.slack_web_client_id)
     client.chat_postMessage(
         channel="#experiments",
@@ -38,7 +38,7 @@ def notify_task_completed(run_dir: str):
 
 def notify_task_error(run_dir: str, msg: str):
     if not TerraSettings.notify:
-        return 
+        return
     client = WebClient(TerraSettings.slack_web_client_id)
     client.chat_postMessage(
         channel="#experiments",
@@ -54,7 +54,7 @@ def notify_task_error(run_dir: str, msg: str):
 
 def notify_task_checkpoint(run_dir: str, msg: str):
     if not TerraSettings.notify:
-        return 
+        return
     client = WebClient(TerraSettings.slack_web_client_id)
     client.chat_postMessage(
         channel="#experiments",
