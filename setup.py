@@ -20,4 +20,7 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": ["run=terra.run:main"]},
     python_requires=">=3.8",
+    install_requires=[
+        "pandas", "numpy", "slackclient"
+    ]
 )

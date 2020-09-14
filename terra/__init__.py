@@ -93,7 +93,7 @@ class Task:
 
                 init_logging(os.path.join(run_dir, "task.log"))
                 init_task_notifications(run_dir=run_dir)
-                print(f"task: running in directory {run_dir}")
+                print(f"task: {fn.__name__}, running in directory {run_dir}")
 
                 # load node inputs
                 for key, value in args_dict.items():
