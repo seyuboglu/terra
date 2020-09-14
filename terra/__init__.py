@@ -17,7 +17,7 @@ from terra.notify import (
     init_task_notifications,
     notify_task_error,
 )
-from terra.settings import TerraSettings
+from terra.settings import TERRA_CONFIG
 
 
 class Task:
@@ -32,7 +32,7 @@ class Task:
     @staticmethod
     def _get_task_dir(fn: callable):
         task_dir = os.path.join(
-            TerraSettings.storage_dir,
+            TERRA_CONFIG["storage_dir"],
             "tasks",
             *fn.__module__.split(".")[1:],
             fn.__name__,

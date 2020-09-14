@@ -27,12 +27,16 @@ def log_git_status(run_dir, exts_to_dump=None) -> dict:
         exts_to_dump = [".py"]
 
     dirty = []
-    dirty_files = (
-        subprocess.check_output(["git", "diff-files", "--name-status"])
-        .decode("utf-8")
-        .strip("\n")
-        .split("\n")
-    )
+    dirty_files = [
+        dirty_file
+        for dirty_file in (
+            subprocess.check_output(["git", "diff-files", "--name-status"])
+            .decode("utf-8")
+            .strip("\n")
+            .split("\n")
+        )
+        if len(dirty_file) > 0
+    ]
     top_level = (
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
         .decode("utf-8")

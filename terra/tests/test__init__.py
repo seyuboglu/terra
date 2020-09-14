@@ -3,13 +3,13 @@ import pandas as pd
 import tempfile
 
 
-from terra import Task, TerraSettings
+from terra import Task, TERRA_CONFIG
 
-TerraSettings.notify = False
+TERRA_CONFIG["notify"] = False
 
 
 def test_make_task(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(run_dir=None):
@@ -19,7 +19,7 @@ def test_make_task(tmpdir):
 
 
 def test_np_pipeline(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -41,7 +41,7 @@ def test_np_pipeline(tmpdir):
 
 
 def test_pandas_pipeline(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -69,7 +69,7 @@ def test_pandas_pipeline(tmpdir):
 
 
 def test_scalar_pipeline(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -91,7 +91,7 @@ def test_scalar_pipeline(tmpdir):
 
 
 def test_out_scalar(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_b(x, run_dir=None):
@@ -111,7 +111,7 @@ def test_out_scalar(tmpdir):
 
 
 def test_out_np(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -130,7 +130,7 @@ def test_out_np(tmpdir):
 
 
 def test_out_pandas(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -143,7 +143,7 @@ def test_out_pandas(tmpdir):
 
 
 def test_inp_scalar(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     @Task.make_task
     def fn_b(x, run_dir=None):
@@ -154,7 +154,7 @@ def test_inp_scalar(tmpdir):
 
 
 def test_inp_np(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
     x = np.ones(4)
 
     @Task.make_task
@@ -166,7 +166,7 @@ def test_inp_np(tmpdir):
 
 
 def test_inp_pandas(tmpdir):
-    TerraSettings.storage_dir = tmpdir
+    TERRA_CONFIG["storage_dir"] = tmpdir
 
     df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(10)])
 
