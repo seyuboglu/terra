@@ -4,6 +4,7 @@ import hashlib
 import shutil
 
 from terra.utils import ensure_dir_exists
+from terra.settings import TERRA_CONFIG
 
 
 def _get_src_dump_path(run_dir, file_path):
@@ -18,7 +19,8 @@ def log_git_status(run_dir, exts_to_dump=None) -> dict:
     """Check if git is dirty, dumping dirty files to run_dir if so. Also return dict with  commit_hash and a list of dirty
     files.
     """
-
+    working_dir = os.getcwd()
+    os.chdir(TERRA_CONFIG["git_dir"])
     commit_hash = subprocess.check_output(
         ["git", "log", "--pretty=format:%H", "-n", "1"]
     ).decode("utf-8")
@@ -42,6 +44,7 @@ def log_git_status(run_dir, exts_to_dump=None) -> dict:
         .decode("utf-8")
         .strip("\n")
     )
+    os.chdir(working_dir)
     for dirty_files in dirty_files:
         status, dirty_path = dirty_files.split("\t")
 

@@ -18,6 +18,7 @@ from terra.notify import (
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
+from terra.database import _get_session, Run
 
 
 class Task:
@@ -39,21 +40,21 @@ class Task:
         )
         return task_dir
 
-    def inp(self, run_idx=None):
-        if run_idx is None:
-            run_idx = _get_latest_run_idx(self.task_dir)
+    def inp(self, run_id=None):
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
         return json_load(
             os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_idx), "inputs.json"
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), "inputs.json"
             )
         )
 
-    def out(self, run_idx=None):
-        if run_idx is None:
-            run_idx = _get_latest_run_idx(self.task_dir)
+    def out(self, run_id=None):
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
         return json_load(
             os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_idx), "outputs.json"
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
             )
         )
 
@@ -70,20 +71,34 @@ class Task:
             if not silence_task:
                 args_dict = getcallargs(fn, *args, **kwargs)
 
-                run_dir = _get_next_run_dir(self.task_dir)
-                args_dict["run_dir"] = run_dir
+                Session = _get_session()
+                session = Session()
 
-                params_dict = {
-                    "git": log_git_status(run_dir),
+                meta_dict = {
                     "notebook": "get_ipython" in globals().keys(),
-                    "start_time": datetime.now().strftime("%y-%m-%d_%H-%M-%S-%f"),
+                    "start_time": datetime.now(),
                     "hostname": socket.gethostname(),
                     "module": fn.__module__,
                     "fn": fn.__name__,
                 }
+                run = Run(status="in_progress", **meta_dict)
+                session.add(run)
+                session.flush()
+                run_dir = _get_run_dir(self.task_dir, run.id)
+                args_dict["run_dir"] = run_dir
+                if os.path.exists(run_dir):
+                    raise ValueError(f"Run already exists at {run_dir}.")
+                ensure_dir_exists(run_dir)
+                run.run_dir = run_dir
+                session.commit()
+
+                # must write git status after getting run dir
+                meta_dict["git"] = log_git_status(run_dir)
+                meta_dict["start_time"] = meta_dict["start_time"].strftime("%y-%m-%d_%H-%M-%S-%f")
+
                 # write metadata
                 json_dump(
-                    params_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
+                    meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
                 )
 
                 # write inputs
@@ -105,10 +120,16 @@ class Task:
                 except (Exception, KeyboardInterrupt) as e:
                     msg = traceback.format_exc()
                     notify_task_error(run_dir, msg)
+                    run.status = "failure"
+                    run.end_time = datetime.now()
+                    session.commit()
                     print(msg)
                     raise e
                 else:
                     notify_task_completed(run_dir)
+                    run.status = "success"
+                    run.end_time = datetime.now()
+                    session.commit()
                     if out is not None:
                         json_dump(
                             out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
@@ -124,7 +145,7 @@ class Task:
 def _get_next_run_dir(task_dir):
     """Get the next available run directory (e.g. "_runs/0", "_runs/1", "_runs/2")
     in base_dir"""
-    latest_idx = _get_latest_run_idx(task_dir)
+    latest_idx = _get_latest_run_id(task_dir)
     idx = latest_idx + 1 if latest_idx is not None else 0
     run_dir = _get_run_dir(task_dir, idx)
     ensure_dir_exists(run_dir)
@@ -136,7 +157,7 @@ def _get_run_dir(task_dir, idx):
     return run_dir
 
 
-def _get_latest_run_idx(task_dir):
+def _get_latest_run_id(task_dir):
     base_dir = os.path.join(task_dir, "_runs")
     if not os.path.isdir(base_dir):
         return None

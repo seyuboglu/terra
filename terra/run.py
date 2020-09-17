@@ -46,7 +46,7 @@ def write_config_skeleton(config_path, process):
 def main():
     parser = argparse.ArgumentParser(description="Run a TPEX process.")
     parser.add_argument("process", type=str)
-    parser.add_argument("--rerun_idx", default=None, type=int)
+    parser.add_argument("--rerun_id", default=None, type=int)
     args = parser.parse_args()
 
     print("importing module...")
@@ -61,7 +61,7 @@ def main():
 
     task_dir = Task._get_task_dir(fn)
 
-    if args.rerun_idx is None:
+    if args.rerun_id is None:
         config_path = os.path.join(task_dir, "config.py")
 
         if not os.path.exists(config_path):
@@ -76,7 +76,7 @@ def main():
         # load config module
         config = load_config(config_path)
     else:
-        config = fn.inp(task_dir, run_idx=args.rerun_idx)
+        config = fn.inp(task_dir, run_id=args.rerun_id)
         config["kwargs"].pop("run_dir")
 
     module = importlib.import_module(config["module"])
