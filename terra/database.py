@@ -37,7 +37,7 @@ def _get_session(storage_dir: str = TERRA_CONFIG["storage_dir"], create: bool = 
     ensure_dir_exists(storage_dir)
     db_path = os.path.join(storage_dir, "terra.sqlite")
     engine = sqlalchemy.create_engine(
-        f"sqlite://{os.path.join(storage_dir, 'terra.sqlite')}", echo=False
+        f"sqlite:///{os.path.join(storage_dir, 'terra.sqlite')}", echo=False
     )
     if not os.path.exists(db_path):
         if create:
