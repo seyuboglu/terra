@@ -18,7 +18,7 @@ from terra.notify import (
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
-from terra.database import _get_session, Run
+from terra.database import get_session, Run
 
 
 class Task:
@@ -71,7 +71,7 @@ class Task:
             if not silence_task:
                 args_dict = getcallargs(fn, *args, **kwargs)
 
-                Session = _get_session()
+                Session = get_session()
                 session = Session()
 
                 meta_dict = {
@@ -94,7 +94,9 @@ class Task:
 
                 # must write git status after getting run dir
                 meta_dict["git"] = log_git_status(run_dir)
-                meta_dict["start_time"] = meta_dict["start_time"].strftime("%y-%m-%d_%H-%M-%S-%f")
+                meta_dict["start_time"] = meta_dict["start_time"].strftime(
+                    "%y-%m-%d_%H-%M-%S-%f"
+                )
 
                 # write metadata
                 json_dump(

@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-import tempfile
 
-
-from terra import Task, TERRA_CONFIG
+from terra import Task
+from terra.settings import TERRA_CONFIG
 
 TERRA_CONFIG["notify"] = False
 
