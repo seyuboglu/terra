@@ -10,9 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from terra.settings import TERRA_CONFIG
 from terra.utils import ensure_dir_exists
 
-
 Base = declarative_base()
-
 
 class Run(Base):
     __tablename__ = "runs"
@@ -28,6 +26,7 @@ class Run(Base):
     python_version = Column(String)
     platform = Column(String)
 
+
 class Ref(Base):
     __tablename__ = "refs"
     id = Column(Integer, primary_key=True)
@@ -36,28 +35,42 @@ class Ref(Base):
 
 
 class TerraDatabase:
-
-    def __init__(self, create:bool = True):
+    def __init__(self, create: bool = True):
         self.Session = get_session(create=create)
-    
-    def get_runs(self, run_ids: Union[int, List[int]]) -> List[Run]:
-        run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
-        query = self.Session().query(Run).filter(Run.id.in_(run_ids))
+
+    def get_runs(
+        self,
+        run_ids: Union[int, List[int]] = None,
+        modules: Union[str, List[str]] = None,
+        fns: Union[str, List[str]] = None,
+    ) -> List[Run]:
+        query = self.Session().query(Run)
+
+        if run_ids is not None:
+            run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+            query = query.filter(Run.id.in_(run_ids))
+
+        if modules is not None:
+            modules = [modules] if isinstance(modules, str) else modules
+            query = query.filter(Run.module.in_(modules))
+
+        if fns is not None:
+            fns = [fns] if isinstance(fns, str) else fns
+            query = query.filter(Run.module.in_(fns))
+
         return query.all()
-    
+
     def rm_runs(self, run_ids: Union[int, List[int]]):
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
         session = self.Session()
         query = session.query(Run).filter(Run.id.in_(run_ids))
         query.update({"status": "deleted"})
         session.commit()
-    
-    
+
+
 def get_session(storage_dir: str = None, create: bool = True):
 
-    storage_dir = (
-        TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
-    )
+    storage_dir = TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
 
     ensure_dir_exists(storage_dir)
     db_path = os.path.join(storage_dir, "terra.sqlite")

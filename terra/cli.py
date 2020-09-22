@@ -4,32 +4,58 @@ import argparse
 import importlib
 import os
 import subprocess
+import pydoc
 
+import pandas as pd
 import click
 
 from terra import Task
+from terra.database import TerraDatabase, get_session
 from terra.utils import ensure_dir_exists
-
 
 @click.group()
 def cli():
     pass
 
-@cli.command()
-@click.argument("run_id")
-def rm(run_id):
-    
-    if click.confirm("Do you want to remove the run_id:  ")
-    print("removing")
 
 @cli.command()
-@click.argument('module')
-@click.argument('task_fn')
-@click.option('--rerun_id', default=None, type=int)
-def run(module: str, task_fn: str, rerun_id: int):
+@click.option("--module", default=None)
+@click.option("--fn", default=None)
+def ls(module: str, fn: str):
+    db = TerraDatabase()
+    runs = db.get_runs(modules=module, fns=fn)
+    df = pd.DataFrame([run.__dict__ for run in runs])
+    pydoc.pipepager(
+        df[
+            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
+        ].to_string(index=False),
+        "less -R",
+    )
+
+
+@cli.command()
+@click.argument("run_id")
+def rm(run_id: int):
+    db = TerraDatabase()
+    runs = db.get_runs(run_ids=run_id)
+    if len(runs) == 0:
+        raise ValueError(f"Could not find run with id {run_id}.")
+    run = runs[0]
+
+    if click.confirm(f"Are you sure you want to remove run with id {run_id}: {run}"):
+        db.rm_runs(run_id)
+        print(f"Removed run with id {run_id}")
+
+
+@cli.command()
+@click.argument("module")
+@click.argument("fn")
+@click.option("--rerun_id", default=None, type=int)
+def run(module: str, fn: str, rerun_id: int):
     print("importing module...")
-    module = importlib.import_module(module)
-    fn = getattr(module, task_fn)
+    module_str, fn_str = module, fn
+    module = importlib.import_module(module_str)
+    fn = getattr(module, fn_str)
 
     if not isinstance(fn, Task):
         raise ValueError(
@@ -43,7 +69,7 @@ def run(module: str, task_fn: str, rerun_id: int):
         config_path = os.path.join(task_dir, "config.py")
 
         if not os.path.exists(config_path):
-            _write_config_skeleton(config_path, args.process)
+            _write_config_skeleton(config_path, module_str, fn_str)
 
         # this can be changed to vi or your preferred editor
         return_code = subprocess.call(["code", "--wait", config_path])
@@ -54,11 +80,12 @@ def run(module: str, task_fn: str, rerun_id: int):
         # load config module
         config = _load_config(config_path)
     else:
-        config = fn.inp(task_dir, run_id=args.rerun_id)
+        config = fn.inp(task_dir, run_id=rerun_id)
         config["kwargs"].pop("run_dir")
 
     module = importlib.import_module(config["module"])
     fn(**config["kwargs"])
+
 
 def _load_config(config_path):
     """Load config module."""
@@ -73,9 +100,7 @@ def _load_config(config_path):
         raise ValueError(f"The config file extension {ext} is not supported.")
 
 
-def _write_config_skeleton(config_path, process):
-    module = ".".join(process.split(".")[:-1])
-    fn = process.split(".")[-1]
+def _write_config_skeleton(config_path, module, fn):
     ensure_dir_exists(os.path.split(config_path)[0])
     with open(config_path, "w") as f:
         f.write(

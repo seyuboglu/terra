@@ -84,7 +84,7 @@ class Task:
                     "platform": platform.platform(),
                     "module": fn.__module__,
                     "fn": fn.__name__,
-                    "python_version": sys.version
+                    "python_version": sys.version,
                 }
 
                 # add run to terra db
@@ -103,12 +103,16 @@ class Task:
                 session.commit()
 
                 # write additional metadata
-                meta_dict.update({
-                    "git": git_status,
-                    "start_time": meta_dict["start_time"].strftime("%y-%m-%d_%H-%M-%S-%f"),
-                    "dependencies": list(freeze.freeze()),
-                    "terra_config": TERRA_CONFIG
-                })
+                meta_dict.update(
+                    {
+                        "git": git_status,
+                        "start_time": meta_dict["start_time"].strftime(
+                            "%y-%m-%d_%H-%M-%S-%f"
+                        ),
+                        "dependencies": list(freeze.freeze()),
+                        "terra_config": TERRA_CONFIG,
+                    }
+                )
                 json_dump(
                     meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
                 )
