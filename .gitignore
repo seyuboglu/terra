@@ -2,6 +2,7 @@
 **.code-workspace
 **.txt
 /test_storage_dir
+terra_config.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
