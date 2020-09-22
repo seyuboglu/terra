@@ -1,5 +1,7 @@
 import os
+from typing import Union, List
 
+import pandas as pd
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
@@ -23,7 +25,8 @@ class Run(Base):
     start_time = Column(DateTime)
     end_time = Column(DateTime)
     hostname = Column(String)
-
+    python_version = Column(String)
+    platform = Column(String)
 
 class Ref(Base):
     __tablename__ = "refs"
@@ -32,6 +35,24 @@ class Ref(Base):
     run_dir = Column(String)
 
 
+class TerraDatabase:
+
+    def __init__(self, create:bool = True):
+        self.Session = get_session(create=create)
+    
+    def get_runs(self, run_ids: Union[int, List[int]]) -> List[Run]:
+        run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+        query = self.Session().query(Run).filter(Run.id.in_(run_ids))
+        return query.all()
+    
+    def rm_runs(self, run_ids: Union[int, List[int]]):
+        run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+        session = self.Session()
+        query = session.query(Run).filter(Run.id.in_(run_ids))
+        query.update({"status": "deleted"})
+        session.commit()
+    
+    
 def get_session(storage_dir: str = None, create: bool = True):
 
     storage_dir = (
@@ -53,5 +74,3 @@ def get_session(storage_dir: str = None, create: bool = True):
             )
 
     return sessionmaker(bind=engine)
-
-

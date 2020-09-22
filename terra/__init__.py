@@ -1,10 +1,13 @@
 """ The `task` module provides a framework for running reproducible analyses."""
 from __future__ import annotations
 import os
+import sys
+import platform
 import traceback
 from datetime import datetime
 from functools import wraps
 from inspect import getcallargs
+from pip._internal.operations import freeze
 import socket
 
 
@@ -78,9 +81,13 @@ class Task:
                     "notebook": "get_ipython" in globals().keys(),
                     "start_time": datetime.now(),
                     "hostname": socket.gethostname(),
+                    "platform": platform.platform(),
                     "module": fn.__module__,
                     "fn": fn.__name__,
+                    "python_version": sys.version
                 }
+
+                # add run to terra db
                 run = Run(status="in_progress", **meta_dict)
                 session.add(run)
                 session.flush()
@@ -92,13 +99,13 @@ class Task:
                 run.run_dir = run_dir
                 session.commit()
 
-                # must write git status after getting run dir
-                meta_dict["git"] = log_git_status(run_dir)
-                meta_dict["start_time"] = meta_dict["start_time"].strftime(
-                    "%y-%m-%d_%H-%M-%S-%f"
-                )
-
-                # write metadata
+                # write additional metadata
+                meta_dict.update({
+                    "git": log_git_status(run_dir),
+                    "start_time": meta_dict["start_time"].strftime("%y-%m-%d_%H-%M-%S-%f"),
+                    "dependencies": list(freeze.freeze()),
+                    #"terra_config": TERRA_CONFIG
+                })
                 json_dump(
                     meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
                 )
