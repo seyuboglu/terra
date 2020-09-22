@@ -18,7 +18,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    entry_points={"console_scripts": ["run=terra.run:main"]},
+    entry_points={"console_scripts": ["run=terra.run:run"]},
     python_requires=">=3.8",
-    install_requires=["pandas", "numpy", "slackclient", "pytest"],
+    install_requires=["pandas", "numpy", "slackclient", "pytest", "sqlalchemy", "click"],
 )

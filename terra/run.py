@@ -5,6 +5,8 @@ import importlib
 import os
 import subprocess
 
+import click
+
 from terra import Task
 from terra.utils import ensure_dir_exists
 
@@ -42,16 +44,14 @@ def write_config_skeleton(config_path, process):
         f.flush()
         f.close()
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Run a TPEX process.")
-    parser.add_argument("process", type=str)
-    parser.add_argument("--rerun_id", default=None, type=int)
-    args = parser.parse_args()
-
+@click.command()
+@click.argument('module')
+@click.argument('task_fn')
+@click.option('--rerun_id', default=None, type=int)
+def run(module: str, task_fn: str, rerun_id: int):
     print("importing module...")
-    module = importlib.import_module(".".join(args.process.split(".")[:-1]))
-    fn = getattr(module, args.process.split(".")[-1])
+    module = importlib.import_module(module)
+    fn = getattr(module, task_fn)
 
     if not isinstance(fn, Task):
         raise ValueError(
@@ -61,7 +61,7 @@ def main():
 
     task_dir = Task._get_task_dir(fn)
 
-    if args.rerun_id is None:
+    if rerun_id is None:
         config_path = os.path.join(task_dir, "config.py")
 
         if not os.path.exists(config_path):
@@ -82,6 +82,3 @@ def main():
     module = importlib.import_module(config["module"])
     fn(**config["kwargs"])
 
-
-if __name__ == "__main__":
-    main()
