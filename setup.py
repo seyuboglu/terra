@@ -20,5 +20,12 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": ["terra=terra.cli:cli"]},
     python_requires=">=3.8",
-    install_requires=["pandas", "numpy", "slackclient", "pytest", "sqlalchemy", "click"],
+    install_requires=[
+        "pandas",
+        "numpy",
+        "slackclient",
+        "pytest",
+        "sqlalchemy",
+        "click",
+    ],
 )
