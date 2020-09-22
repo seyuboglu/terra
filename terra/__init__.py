@@ -97,14 +97,17 @@ class Task:
                     raise ValueError(f"Run already exists at {run_dir}.")
                 ensure_dir_exists(run_dir)
                 run.run_dir = run_dir
+                git_status = log_git_status(run_dir)
+                run.git_commit = git_status["commit_hash"]
+                run.git_dirty = len(git_status["dirty"]) > 0
                 session.commit()
 
                 # write additional metadata
                 meta_dict.update({
-                    "git": log_git_status(run_dir),
+                    "git": git_status,
                     "start_time": meta_dict["start_time"].strftime("%y-%m-%d_%H-%M-%S-%f"),
                     "dependencies": list(freeze.freeze()),
-                    #"terra_config": TERRA_CONFIG
+                    "terra_config": TERRA_CONFIG
                 })
                 json_dump(
                     meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir

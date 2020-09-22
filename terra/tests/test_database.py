@@ -7,7 +7,7 @@ TERRA_CONFIG["notify"] = False
 
 
 def test_get_session(tmpdir):
-    TERRA_CONFIG["storage_dir"] = tmpdir
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
 
     get_session(create=True)
     db_path = os.path.join(TERRA_CONFIG["storage_dir"], "terra.sqlite")
@@ -20,7 +20,7 @@ def test_get_session(tmpdir):
     
 
 def test_dont_create_database(tmpdir):
-    TERRA_CONFIG["storage_dir"] = tmpdir
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
 
     try:
         get_session(create=False)
