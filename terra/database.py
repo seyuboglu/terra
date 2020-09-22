@@ -4,7 +4,7 @@ from typing import Union, List
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, desc
 from sqlalchemy.orm import sessionmaker
 
 from terra.settings import TERRA_CONFIG
@@ -45,7 +45,7 @@ class TerraDatabase:
         self,
         run_ids: Union[int, List[int]] = None,
         modules: Union[str, List[str]] = None,
-        fns: Union[str, List[str]] = None,
+        fns: Union[str, List[str]] = None
     ) -> List[Run]:
         query = self.Session().query(Run)
 
@@ -60,6 +60,8 @@ class TerraDatabase:
         if fns is not None:
             fns = [fns] if isinstance(fns, str) else fns
             query = query.filter(Run.module.in_(fns))
+
+        query = query.order_by(desc(Run.start_time))
 
         return query.all()
 
