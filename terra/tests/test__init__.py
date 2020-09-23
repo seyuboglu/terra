@@ -89,6 +89,25 @@ def test_scalar_pipeline(tmpdir):
     assert np.all(out_c == np.full(4, 32))
 
 
+def test_nested_np_pipeline(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return {"a": np.ones(4) * x,
+                "b": [np.ones(4) * 2* x, np.ones(4) * 2 * x]
+        }
+
+    @Task.make_task
+    def fn_c(x, run_dir=None):
+        return x["a"] + x["b"][0] + x["b"][0]
+
+    fn_a(1)
+    out_c = fn_c(fn_a.out())
+
+    assert np.all(out_c == np.full(4, 5))
+
+
 def test_out_scalar(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
 

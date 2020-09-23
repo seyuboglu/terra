@@ -14,7 +14,7 @@ import socket
 from terra.git import log_git_status
 from terra.utils import ensure_dir_exists
 from terra.logging import init_logging
-from terra.io import Artifact, json_dump, json_load
+from terra.io import Artifact, json_dump, json_load, load_nested_artifacts
 from terra.notify import (
     notify_task_completed,
     init_task_notifications,
@@ -127,9 +127,7 @@ class Task:
                 print(f"task: {fn.__name__}, running in directory {run_dir}")
 
                 # load node inputs
-                for key, value in args_dict.items():
-                    if isinstance(value, Artifact):
-                        args_dict[key] = value.load()
+                args_dict = load_nested_artifacts(args_dict)
 
                 try:
                     out = fn(**args_dict)

@@ -1,7 +1,7 @@
 import os
 import json
 import uuid
-from typing import Union
+from typing import Union, Iterable, Mapping
 import importlib
 
 import pandas as pd
@@ -41,6 +41,19 @@ class Artifact:
     @staticmethod
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
+    
+
+def load_nested_artifacts(obj: Union[list, dict]):
+    if isinstance(obj, list):
+        return [load_nested_artifacts(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return (load_nested_artifacts(v) for v in obj)
+    elif isinstance(obj, dict): 
+        return {k: load_nested_artifacts(v) for k, v in obj.items()}
+    elif isinstance(obj, Artifact):
+        return obj.load()
+    else:
+        return obj
 
 
 def json_dump(obj: Union[dict, list], path: str, run_dir: str):
