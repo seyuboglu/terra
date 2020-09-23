@@ -28,6 +28,8 @@ class Run(Base):
     git_commit = Column(String)
     git_dirty = Column(Boolean)
 
+    def get_summary(self):
+        return f"module={self.module}, fn={self.fn}, status={self.status}, run_dir={self.run_dir}"
 
 
 class Ref(Base):
@@ -47,7 +49,8 @@ class TerraDatabase:
         modules: Union[str, List[str]] = None,
         fns: Union[str, List[str]] = None
     ) -> List[Run]:
-        query = self.Session().query(Run)
+        session = self.Session()
+        query = session.query(Run)
 
         if run_ids is not None:
             run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
@@ -69,7 +72,7 @@ class TerraDatabase:
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
         session = self.Session()
         query = session.query(Run).filter(Run.id.in_(run_ids))
-        query.update({"status": "deleted"})
+        query.update({Run.status: "deleted"}, synchronize_session=False)
         session.commit()
 
 
