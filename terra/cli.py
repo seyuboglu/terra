@@ -35,7 +35,7 @@ def ls(module: str, fn: str):
 
 
 @cli.command()
-@click.argument("run_id")
+@click.argument("run_id", type=int)
 def rm(run_id: int):
     db = TerraDatabase()
     runs = db.get_runs(run_ids=run_id)
@@ -50,8 +50,8 @@ def rm(run_id: int):
 
 
 @cli.command()
-@click.argument("module")
-@click.argument("fn")
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
 @click.option("--rerun_id", default=None, type=int)
 def run(module: str, fn: str, rerun_id: int):
     print("importing module...")
