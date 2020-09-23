@@ -134,7 +134,7 @@ class Task:
                 except (Exception, KeyboardInterrupt) as e:
                     msg = traceback.format_exc()
                     notify_task_error(run_dir, msg)
-                    run.status = "failure"
+                    run.status = "interrupted" if isinstance(e, KeyboardInterrupt) else "failure"
                     run.end_time = datetime.now()
                     session.commit()
                     print(msg)
