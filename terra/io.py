@@ -109,6 +109,9 @@ def reader(read_type: type):
 
 
 def generalized_read(path, read_type: type):
+    if hasattr(read_type, "__terra_read__"):
+        return read_type.__terra_read__(path)
+
     if read_type not in reader_registry:
         raise ValueError(f"Object type {read_type} not supported.")
     else:
@@ -127,6 +130,9 @@ def writer(write_type: type):
 
 
 def generalized_write(out, path):
+    if hasattr(out, "__terra_write__"):
+        out.__terra_write__(path)
+
     if type(out) not in writer_registry:
         raise ValueError(f"Type {type(out)} not supported.")
 
