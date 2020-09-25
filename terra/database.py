@@ -12,6 +12,7 @@ from terra.utils import ensure_dir_exists
 
 Base = declarative_base()
 
+
 class Run(Base):
     __tablename__ = "runs"
     id = Column(Integer, primary_key=True)
@@ -47,7 +48,7 @@ class TerraDatabase:
         self,
         run_ids: Union[int, List[int]] = None,
         modules: Union[str, List[str]] = None,
-        fns: Union[str, List[str]] = None
+        fns: Union[str, List[str]] = None,
     ) -> List[Run]:
         session = self.Session()
         query = session.query(Run)

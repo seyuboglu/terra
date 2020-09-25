@@ -14,6 +14,7 @@ from terra import Task
 from terra.database import TerraDatabase, get_session
 from terra.utils import ensure_dir_exists
 
+
 @click.group()
 def cli():
     pass
@@ -43,7 +44,9 @@ def rm(run_id: int):
         raise ValueError(f"Could not find run with id {run_id}.")
     run = runs[0]
 
-    if click.confirm(f"Are you sure you want to remove run with id {run.id}: \n {run.get_summary()}"):
+    if click.confirm(
+        f"Are you sure you want to remove run with id {run.id}: \n {run.get_summary()}"
+    ):
         db.rm_runs(run.id)
         shutil.rmtree(run.run_dir)
         print(f"Removed run with id {run_id}")
