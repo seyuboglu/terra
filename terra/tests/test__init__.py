@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import json
 
 from terra import Task
 from terra.settings import TERRA_CONFIG
@@ -94,9 +95,7 @@ def test_nested_np_pipeline(tmpdir):
 
     @Task.make_task
     def fn_a(x, run_dir=None):
-        return {"a": np.ones(4) * x,
-                "b": [np.ones(4) * 2* x, np.ones(4) * 2 * x]
-        }
+        return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
     @Task.make_task
     def fn_c(x, run_dir=None):
@@ -160,6 +159,38 @@ def test_out_pandas(tmpdir):
     assert len(fn_a.out().load()) == 10
 
 
+class CustomClass:
+    def __init__(self, attr: int):
+        self.attr = attr
+
+    @classmethod
+    def __terra_read__(cls, path):
+        with open(path, "r") as f:
+            dct = json.load(f)
+        return cls(dct["attr"])
+
+    def __terra_write__(self, path):
+        with open(path, "w") as f:
+            json.dump(self.__dict__, f)
+
+
+def test_out_custom(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return CustomClass(attr=x)
+
+    @Task.make_task
+    def fn_b(x, run_dir=None):
+        return x.attr * 2
+
+    fn_a(4)
+    fn_b(fn_a.out())
+
+    assert fn_b.out() == 8
+
+
 def test_inp_scalar(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
 
@@ -194,3 +225,15 @@ def test_inp_pandas(tmpdir):
 
     fn_a(df)
     assert len(fn_a.inp()["x"].load()) == 10
+
+
+def test_inp_custom(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return x
+
+    fn_a(CustomClass(attr=4))
+
+    assert fn_a.inp()["x"].load().attr == 4

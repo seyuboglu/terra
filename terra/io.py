@@ -41,14 +41,14 @@ class Artifact:
     @staticmethod
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
-    
+
 
 def load_nested_artifacts(obj: Union[list, dict]):
     if isinstance(obj, list):
         return [load_nested_artifacts(v) for v in obj]
     elif isinstance(obj, tuple):
         return (load_nested_artifacts(v) for v in obj)
-    elif isinstance(obj, dict): 
+    elif isinstance(obj, dict):
         return {k: load_nested_artifacts(v) for k, v in obj.items()}
     elif isinstance(obj, Artifact):
         return obj.load()
@@ -74,13 +74,16 @@ class TerraEncoder(json.JSONEncoder):
         self.run_dir = run_dir
 
     def default(self, obj):
-        if callable(obj) or isinstance(obj, type):
+        if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
             return {"__module__": obj.__module__, "__name__": obj.__name__}
-        if isinstance(obj, Artifact):
-            return obj.serialize()
-        elif type(obj) in writer_registry:
+
+        elif (type(obj) in writer_registry) or hasattr(obj, "__terra_write__"):
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
+
+        if isinstance(obj, Artifact):
+            return obj.serialize()
+
         return json.JSONEncoder.default(self, obj)
 
 
@@ -131,12 +134,11 @@ def writer(write_type: type):
 
 def generalized_write(out, path):
     if hasattr(out, "__terra_write__"):
-        out.__terra_write__(path)
-
-    if type(out) not in writer_registry:
+        new_path = out.__terra_write__(path)
+    elif type(out) in writer_registry:
+        new_path = writer_registry[type(out)](out, path)
+    else:
         raise ValueError(f"Type {type(out)} not supported.")
-
-    new_path = writer_registry[type(out)](out, path)
 
     if new_path is None:
         return path
