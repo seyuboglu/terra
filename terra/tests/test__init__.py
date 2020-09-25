@@ -237,3 +237,23 @@ def test_inp_custom(tmpdir):
     fn_a(CustomClass(attr=4))
 
     assert fn_a.inp()["x"].load().attr == 4
+
+
+def test_kwargs_custom(tmpdir):
+    """Functions with kwargs are a bit of an edge case"""
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+
+    def fn_b(x, y, z):
+        return x * y + z
+
+    @Task.make_task
+    def fn_a(run_dir=None, **kwargs):
+        return fn_b(**kwargs)
+
+    fn_a(x=3, y=2, z=9)
+
+    assert fn_a.inp()["x"] == 3
+    assert fn_a.inp()["y"] == 2
+    assert fn_a.inp()["z"] == 9
+
+    assert fn_a.out() == 15

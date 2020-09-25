@@ -42,6 +42,10 @@ class Task:
             fn.__name__,
         )
         return task_dir
+    
+    def run_dir(self, run_id: int):
+        return _get_run_dir(self.task_dir, run_id)
+
 
     def inp(self, run_id=None):
         if run_id is None:
@@ -73,6 +77,9 @@ class Task:
 
             if not silence_task:
                 args_dict = getcallargs(fn, *args, **kwargs)
+                
+                if "kwargs" in args_dict:
+                    args_dict.update(args_dict.pop("kwargs"))
 
                 Session = get_session()
                 session = Session()
