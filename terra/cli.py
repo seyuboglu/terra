@@ -36,6 +36,15 @@ def ls(module: str, fn: str):
 
 
 @cli.command()
+def du():
+    from terra.settings import TERRA_CONFIG
+    working_dir = os.getcwd()
+    os.chdir(TERRA_CONFIG["storage_dir"])
+    subprocess.call(["du", "-sh", "--", os.path.join(TERRA_CONFIG["storage_dir"])])
+    os.chdir(working_dir)
+
+
+@cli.command()
 @click.argument("run_id", type=int)
 def rm(run_id: int):
     db = TerraDatabase()
