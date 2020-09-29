@@ -45,7 +45,11 @@ class Task:
     
     def run_dir(self, run_id: int):
         return _get_run_dir(self.task_dir, run_id)
-
+    
+    @property
+    def last_run_id(self):
+        run_id = _get_latest_run_id(self.task_dir)
+        return run_id
 
     def inp(self, run_id=None):
         if run_id is None:
