@@ -31,15 +31,16 @@ class Task:
         task.task_dir = cls._get_task_dir(fn)
         task.fn = task._get_wrapper(fn)
         task.__name__ = fn.__name__
+        task.__module__ = fn.__module__
         return task
 
     @staticmethod
-    def _get_task_dir(fn: callable):
+    def _get_task_dir(task: Task):
         task_dir = os.path.join(
             TERRA_CONFIG["storage_dir"],
             "tasks",
-            *fn.__module__.split(".")[1:],
-            fn.__name__,
+            *task.__module__.split(".")[1:], # TODO: take full path
+            task.__name__,
         )
         return task_dir
     
