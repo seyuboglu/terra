@@ -27,5 +27,6 @@ setuptools.setup(
         "pytest",
         "sqlalchemy",
         "click",
+        "tqdm"
     ],
 )

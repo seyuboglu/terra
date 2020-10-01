@@ -1,4 +1,5 @@
 import os
+from tqdm import tqdm as _tqdm
 
 
 def ensure_dir_exists(dir):
@@ -13,3 +14,9 @@ def ensure_dir_exists(dir):
     elif not (os.path.exists(dir)):
         ensure_dir_exists(os.path.dirname(dir))
         os.mkdir(dir)
+
+
+def tqdm(*args, **kwargs):
+    """ Wrapper around tqdm that doesn't skip lines in Jupyter Notebooks."""
+    getattr(_tqdm, "_instances", {}).clear()
+    return _tqdm(*args, **kwargs)
