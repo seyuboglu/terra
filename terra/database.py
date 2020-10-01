@@ -63,7 +63,7 @@ class TerraDatabase:
 
         if fns is not None:
             fns = [fns] if isinstance(fns, str) else fns
-            query = query.filter(Run.module.in_(fns))
+            query = query.filter(Run.fn.in_(fns))
 
         query = query.order_by(desc(Run.start_time))
 
