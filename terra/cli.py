@@ -27,6 +27,9 @@ def cli():
 def ls(module: str, fn: str, status: str):
     db = TerraDatabase()
     runs = db.get_runs(modules=module, fns=fn, statuses=status)
+    if len(runs) == 0:
+        print("Query returned no tasks.")
+        return
     df = pd.DataFrame([run.__dict__ for run in runs])
     pydoc.pipepager(
         df[
