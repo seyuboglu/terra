@@ -59,7 +59,9 @@ def load_nested_artifacts(obj: Union[list, dict]):
 def json_dump(obj: Union[dict, list], path: str, run_dir: str):
     with open(path, "w") as f:
         encoder = TerraEncoder(run_dir=run_dir, indent=4)
-        f.write(encoder.encode(obj))
+        encoded = encoder.encode(obj)
+        f.write(encoded)
+        return encoded
 
 
 def json_load(path: str):

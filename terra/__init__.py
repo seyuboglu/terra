@@ -159,7 +159,7 @@ class Task:
                     run.end_time = datetime.now()
                     session.commit()
                     if out is not None:
-                        json_dump(
+                        out = json_dump(
                             out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
                         )
 
