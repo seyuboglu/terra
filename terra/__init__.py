@@ -39,14 +39,14 @@ class Task:
         task_dir = os.path.join(
             TERRA_CONFIG["storage_dir"],
             "tasks",
-            *task.__module__.split(".")[1:], # TODO: take full path
+            *task.__module__.split(".")[1:],  # TODO: take full path
             task.__name__,
         )
         return task_dir
-    
+
     def run_dir(self, run_id: int):
         return _get_run_dir(self.task_dir, run_id)
-    
+
     @property
     def last_run_id(self):
         run_id = _get_latest_run_id(self.task_dir)
@@ -79,10 +79,11 @@ class Task:
             # `silence_task` is an optional parameter that when passed to a task call
             # it instructs Task to skip recording the run
             silence_task = kwargs.pop("silence_task", False)
+            return_run_id = kwargs.pop("return_run_id", False)
 
             if not silence_task:
                 args_dict = getcallargs(fn, *args, **kwargs)
-                
+
                 if "kwargs" in args_dict:
                     args_dict.update(args_dict.pop("kwargs"))
 
@@ -102,50 +103,51 @@ class Task:
                 # add run to terra db
                 run = Run(status="in_progress", **meta_dict)
                 session.add(run)
-                session.flush()
-                run_dir = _get_run_dir(self.task_dir, run.id)
-                args_dict["run_dir"] = run_dir
-                if os.path.exists(run_dir):
-                    raise ValueError(f"Run already exists at {run_dir}.")
-                ensure_dir_exists(run_dir)
-                run.run_dir = run_dir
-                git_status = log_git_status(run_dir)
-                run.git_commit = git_status["commit_hash"]
-                run.git_dirty = len(git_status["dirty"]) > 0
                 session.commit()
-
-                # write additional metadata
-                meta_dict.update(
-                    {
-                        "git": git_status,
-                        "start_time": meta_dict["start_time"].strftime(
-                            "%y-%m-%d_%H-%M-%S-%f"
-                        ),
-                        "dependencies": list(freeze.freeze()),
-                        "terra_config": TERRA_CONFIG,
-                    }
-                )
-                json_dump(
-                    meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
-                )
-
-                # write inputs
-                json_dump(
-                    args_dict, os.path.join(run_dir, "inputs.json"), run_dir=run_dir
-                )
-
-                init_logging(os.path.join(run_dir, "task.log"))
-                init_task_notifications(run_dir=run_dir)
-                print(f"task: {fn.__name__}, running in directory {run_dir}")
-
-                # load node inputs
-                args_dict = load_nested_artifacts(args_dict)
-
+                print(run.id)
                 try:
+                    run_dir = _get_run_dir(self.task_dir, run.id)
+                    args_dict["run_dir"] = run_dir
+                    if os.path.exists(run_dir):
+                        raise ValueError(f"Run already exists at {run_dir}.")
+                    ensure_dir_exists(run_dir)
+                    run.run_dir = run_dir
+                    git_status = log_git_status(run_dir)
+                    run.git_commit = git_status["commit_hash"]
+                    run.git_dirty = len(git_status["dirty"]) > 0
+                    session.commit()
+
+                    # write additional metadata
+                    meta_dict.update(
+                        {
+                            "git": git_status,
+                            "start_time": meta_dict["start_time"].strftime(
+                                "%y-%m-%d_%H-%M-%S-%f"
+                            ),
+                            "dependencies": list(freeze.freeze()),
+                            "terra_config": TERRA_CONFIG,
+                        }
+                    )
+                    json_dump(
+                        meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
+                    )
+
+                    # write inputs
+                    json_dump(
+                        args_dict, os.path.join(run_dir, "inputs.json"), run_dir=run_dir
+                    )
+
+                    init_logging(os.path.join(run_dir, "task.log"))
+                    init_task_notifications(run_id=run.id)
+                    print(f"task: {fn.__name__}, running in directory {run_dir}")
+
+                    # load node inputs
+                    args_dict = load_nested_artifacts(args_dict)
+
                     out = fn(**args_dict)
                 except (Exception, KeyboardInterrupt) as e:
                     msg = traceback.format_exc()
-                    notify_task_error(run_dir, msg)
+                    notify_task_error(run.id, msg)
                     run.status = (
                         "interrupted" if isinstance(e, KeyboardInterrupt) else "failure"
                     )
@@ -154,7 +156,7 @@ class Task:
                     print(msg)
                     raise e
                 else:
-                    notify_task_completed(run_dir)
+                    notify_task_completed(run.id)
                     run.status = "success"
                     run.end_time = datetime.now()
                     session.commit()
@@ -163,7 +165,10 @@ class Task:
                             out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
                         )
 
-                return out
+                if return_run_id:
+                    return (run.id, out) if out is not None else run.id
+                else:
+                    return out
             else:
                 return fn(*args, **kwargs)
 

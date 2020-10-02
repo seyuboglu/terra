@@ -23,9 +23,10 @@ def cli():
 @cli.command()
 @click.option("--module", default=None)
 @click.option("--fn", default=None)
-def ls(module: str, fn: str):
+@click.option("--status", default=None)
+def ls(module: str, fn: str, status: str):
     db = TerraDatabase()
-    runs = db.get_runs(modules=module, fns=fn)
+    runs = db.get_runs(modules=module, fns=fn, statuses=status)
     df = pd.DataFrame([run.__dict__ for run in runs])
     pydoc.pipepager(
         df[
@@ -38,6 +39,7 @@ def ls(module: str, fn: str):
 @cli.command()
 def du():
     from terra.settings import TERRA_CONFIG
+
     working_dir = os.getcwd()
     os.chdir(TERRA_CONFIG["storage_dir"])
     subprocess.call(["du", "-sh", "--", os.path.join(TERRA_CONFIG["storage_dir"])])

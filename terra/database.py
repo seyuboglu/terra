@@ -49,6 +49,7 @@ class TerraDatabase:
         run_ids: Union[int, List[int]] = None,
         modules: Union[str, List[str]] = None,
         fns: Union[str, List[str]] = None,
+        statuses: Union[str, List[str]] = None,
     ) -> List[Run]:
         session = self.Session()
         query = session.query(Run)
@@ -64,6 +65,10 @@ class TerraDatabase:
         if fns is not None:
             fns = [fns] if isinstance(fns, str) else fns
             query = query.filter(Run.fn.in_(fns))
+
+        if statuses is not None:
+            statuses = [statuses] if isinstance(statuses, str) else statuses
+            query = query.filter(Run.status.in_(statuses))
 
         query = query.order_by(desc(Run.start_time))
 
