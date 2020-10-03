@@ -104,7 +104,6 @@ class Task:
                 run = Run(status="in_progress", **meta_dict)
                 session.add(run)
                 session.commit()
-                print(run.id)
                 try:
                     run_dir = _get_run_dir(self.task_dir, run.id)
                     args_dict["run_dir"] = run_dir
@@ -139,7 +138,7 @@ class Task:
 
                     init_logging(os.path.join(run_dir, "task.log"))
                     init_task_notifications(run_id=run.id)
-                    print(f"task: {fn.__name__}, running in directory {run_dir}")
+                    print(f"task: {fn.__name__}, run_id={run.id}")
 
                     # load node inputs
                     args_dict = load_nested_artifacts(args_dict)
