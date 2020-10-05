@@ -1,23 +1,33 @@
 """
 """
-import argparse
 import importlib
 import os
 import subprocess
 import pydoc
 import shutil
+from typing import List
 
 import pandas as pd
 import click
 
 from terra import Task
-from terra.database import TerraDatabase, get_session
+from terra.database import TerraDatabase
 from terra.utils import ensure_dir_exists
 
 
 @click.group()
 def cli():
     pass
+
+
+
+@cli.command()
+@click.option("--run_ids", "-r", type=str)
+def tb(run_ids: str):
+    run_ids = map(int, run_ids.split(","))
+    db = TerraDatabase()
+    specs = [f"{run.id}:{run.run_dir}" for run in db.get_runs(run_ids=run_ids)]
+    subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
 
 
 @cli.command()
