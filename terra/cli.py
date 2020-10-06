@@ -101,10 +101,11 @@ def run(module: str, fn: str, rerun_id: int):
             _write_config_skeleton(config_path, module_str, fn_str)
 
         # this can be changed to vi or your preferred editor
-        return_code = subprocess.call(["code", "--wait", config_path])
-        if return_code == 1:
-            print("Using vim instead.")
-            subprocess.call(["vi", config_path])
+        subprocess.call(["vi", config_path])
+        #return_code = subprocess.call(["code", "--wait", config_path])
+        #if return_code != 0:
+        #    print("Using vim instead.")
+        #    subprocess.call(["vi", config_path])
 
         # load config module
         config = _load_config(config_path)

@@ -72,7 +72,9 @@ class TerraDatabase:
 
         query = query.order_by(desc(Run.start_time))
 
-        return query.all()
+        out = query.all()
+        session.close()
+        return out 
 
     def rm_runs(self, run_ids: Union[int, List[int]]):
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
@@ -80,6 +82,7 @@ class TerraDatabase:
         query = session.query(Run).filter(Run.id.in_(run_ids))
         query.update({Run.status: "deleted"}, synchronize_session=False)
         session.commit()
+        session.close()
 
 
 def get_session(storage_dir: str = None, create: bool = True):
