@@ -152,7 +152,6 @@ class Task:
                     )
                     run.end_time = datetime.now()
                     session.commit()
-                    session.close()
                     print(msg)
                     raise e
                 else:
@@ -160,16 +159,16 @@ class Task:
                     run.status = "success"
                     run.end_time = datetime.now()
                     session.commit()
-                    session.close()
                     if out is not None:
                         out = json_dump(
                             out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
                         )
 
                 if return_run_id:
-                    return (run.id, out) if out is not None else run.id
-                else:
-                    return out
+                    out = (run.id, out) if out is not None else run.id
+                session.close()
+                return out
+
             else:
                 return fn(*args, **kwargs)
 
