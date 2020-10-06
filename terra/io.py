@@ -3,6 +3,7 @@ import json
 import uuid
 from typing import Union, Iterable, Mapping
 import importlib
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -79,13 +80,11 @@ class TerraEncoder(json.JSONEncoder):
     def default(self, obj):
         if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
             return {"__module__": obj.__module__, "__name__": obj.__name__}
-
-        elif (type(obj) in writer_registry) or hasattr(obj, "__terra_write__"):
+        elif isinstance(obj, Artifact):
+            return obj.serialize()
+        else:
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
-
-        if isinstance(obj, Artifact):
-            return obj.serialize()
 
         return json.JSONEncoder.default(self, obj)
 
@@ -118,10 +117,15 @@ def generalized_read(path, read_type: type):
     if hasattr(read_type, "__terra_read__"):
         return read_type.__terra_read__(path)
 
-    if read_type not in reader_registry:
-        raise ValueError(f"Object type {read_type} not supported.")
-    else:
+    elif read_type  in reader_registry:
         return reader_registry[read_type](path)
+    else:
+        try: 
+            new_path = path + ".pkl"
+            with open(new_path) as f:
+                return pickle.load(f)
+        except pickle.UnpicklingError as e: 
+            raise ValueError(f"Object type {read_type} not pickleable.")
 
 
 writer_registry = {}
@@ -141,7 +145,12 @@ def generalized_write(out, path):
     elif type(out) in writer_registry:
         new_path = writer_registry[type(out)](out, path)
     else:
-        raise ValueError(f"Type {type(out)} not supported.")
+        try: 
+            new_path = path + ".pkl"
+            with open(new_path, 'wb') as f:
+                pickle.dump(out, f)
+        except pickle.PicklingError as e: 
+            raise ValueError(f"Type {type(out)} not pickleable.")
 
     if new_path is None:
         return path
