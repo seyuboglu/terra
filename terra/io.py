@@ -119,10 +119,11 @@ def generalized_read(path, read_type: type):
 
     elif read_type  in reader_registry:
         return reader_registry[read_type](path)
+        
     else:
         try: 
             new_path = path + ".pkl"
-            with open(new_path) as f:
+            with open(new_path, 'rb') as f:
                 return pickle.load(f)
         except pickle.UnpicklingError as e: 
             raise ValueError(f"Object type {read_type} not pickleable.")
