@@ -69,6 +69,15 @@ class Task:
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
             )
         )
+    
+    def get_artifacts(self, group_name: str = "outputs", run_id=None):
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
+        return json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            )
+        )
 
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)
@@ -165,7 +174,7 @@ class Task:
                         )
 
                 if return_run_id:
-                    out = (run.id, out) if out is not None else run.id
+                    out = (int(run.id), out) if out is not None else int(run.id)
                 session.close()
                 return out
 
