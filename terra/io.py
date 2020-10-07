@@ -42,6 +42,9 @@ class Artifact:
     @staticmethod
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
+    
+    def __str__(self):
+        return str(self.serialize())
 
 
 def load_nested_artifacts(obj: Union[list, dict]):
