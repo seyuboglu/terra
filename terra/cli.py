@@ -34,9 +34,13 @@ def tb(run_ids: str):
 @click.option("--module", default=None)
 @click.option("--fn", default=None)
 @click.option("--status", default=None)
-def ls(module: str, fn: str, status: str):
+@click.option("--run_ids", "-r", type=str, default=None)
+def ls(module: str, fn: str, status: str, run_ids:str):
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+
     db = TerraDatabase()
-    runs = db.get_runs(modules=module, fns=fn, statuses=status)
+    runs = db.get_runs(modules=module, fns=fn, statuses=status, run_ids=run_ids)
     if len(runs) == 0:
         print("Query returned no tasks.")
         return
