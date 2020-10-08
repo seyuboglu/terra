@@ -74,7 +74,7 @@ class TerraDatabase:
 
         out = query.all()
         session.close()
-        return out 
+        return out
 
     def rm_runs(self, run_ids: Union[int, List[int]]):
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids

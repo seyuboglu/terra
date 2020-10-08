@@ -42,7 +42,7 @@ class Artifact:
     @staticmethod
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
-    
+
     def __str__(self):
         return str(self.serialize())
 
@@ -120,15 +120,15 @@ def generalized_read(path, read_type: type):
     if hasattr(read_type, "__terra_read__"):
         return read_type.__terra_read__(path)
 
-    elif read_type  in reader_registry:
+    elif read_type in reader_registry:
         return reader_registry[read_type](path)
-        
+
     else:
-        try: 
+        try:
             new_path = path + ".pkl"
-            with open(new_path, 'rb') as f:
+            with open(new_path, "rb") as f:
                 return pickle.load(f)
-        except pickle.UnpicklingError as e: 
+        except pickle.UnpicklingError as e:
             raise ValueError(f"Object type {read_type} not pickleable.")
 
 
@@ -149,11 +149,11 @@ def generalized_write(out, path):
     elif type(out) in writer_registry:
         new_path = writer_registry[type(out)](out, path)
     else:
-        try: 
+        try:
             new_path = path + ".pkl"
-            with open(new_path, 'wb') as f:
+            with open(new_path, "wb") as f:
                 pickle.dump(out, f)
-        except pickle.PicklingError as e: 
+        except pickle.PicklingError as e:
             raise ValueError(f"Type {type(out)} not pickleable.")
 
     if new_path is None:

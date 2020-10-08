@@ -20,7 +20,6 @@ def cli():
     pass
 
 
-
 @cli.command()
 @click.option("--run_ids", "-r", type=str)
 def tb(run_ids: str):
@@ -35,7 +34,7 @@ def tb(run_ids: str):
 @click.option("--fn", default=None)
 @click.option("--status", default=None)
 @click.option("--run_ids", "-r", type=str, default=None)
-def ls(module: str, fn: str, status: str, run_ids:str):
+def ls(module: str, fn: str, status: str, run_ids: str):
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
 
@@ -106,8 +105,8 @@ def run(module: str, fn: str, rerun_id: int):
 
         # this can be changed to vi or your preferred editor
         subprocess.call(["vi", config_path])
-        #return_code = subprocess.call(["code", "--wait", config_path])
-        #if return_code != 0:
+        # return_code = subprocess.call(["code", "--wait", config_path])
+        # if return_code != 0:
         #    print("Using vim instead.")
         #    subprocess.call(["vi", config_path])
 

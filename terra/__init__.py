@@ -52,7 +52,7 @@ class Task:
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
 
-    def inp(self, run_id: int=None, load: bool=False):
+    def inp(self, run_id: int = None, load: bool = False):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         inps = json_load(
@@ -62,7 +62,7 @@ class Task:
         )
         return load_nested_artifacts(inps) if load else inps
 
-    def out(self, run_id: int=None, load: bool=False):
+    def out(self, run_id: int = None, load: bool = False):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         outs = json_load(
@@ -72,8 +72,10 @@ class Task:
         )
 
         return load_nested_artifacts(outs) if load else outs
-    
-    def get_artifacts(self, group_name: str = "outputs", run_id=None, load: bool=False):
+
+    def get_artifacts(
+        self, group_name: str = "outputs", run_id=None, load: bool = False
+    ):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         artifacts = json_load(
