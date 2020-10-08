@@ -52,32 +52,36 @@ class Task:
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
 
-    def inp(self, run_id=None):
+    def inp(self, run_id: int=None, load: bool=False):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
-        return json_load(
+        inps = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), "inputs.json"
             )
         )
+        return load_nested_artifacts(inps) if load else inps
 
-    def out(self, run_id=None):
+    def out(self, run_id: int=None, load: bool=False):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
-        return json_load(
+        outs = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
             )
         )
+
+        return load_nested_artifacts(outs) if load else outs
     
-    def get_artifacts(self, group_name: str = "outputs", run_id=None):
+    def get_artifacts(self, group_name: str = "outputs", run_id=None, load: bool=False):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
-        return json_load(
+        artifacts = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
             )
         )
+        return load_nested_artifacts(artifacts) if load else artifacts
 
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)
