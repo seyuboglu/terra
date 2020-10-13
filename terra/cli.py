@@ -21,12 +21,21 @@ def cli():
 
 
 @cli.command()
-@click.option("--run_ids", "-r", type=str)
-def tb(run_ids: str):
-    run_ids = map(int, run_ids.split(","))
+@click.option("--run_ids", "-r", type=str, default=None)
+@click.option("--fn", default=None)
+def tb(run_ids: str, fn:str):
+    specs = []
     db = TerraDatabase()
-    specs = [f"{run.id}:{run.run_dir}" for run in db.get_runs(run_ids=run_ids)]
+
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+        specs.extend([f"{run.id}:{run.run_dir}" for run in db.get_runs(run_ids=run_ids)])
+    
+    if fn is not None:
+        specs.extend([f"{run.id}:{run.run_dir}" for run in db.get_runs(fns=fn)])
+    
     subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
+    
 
 
 @cli.command()
