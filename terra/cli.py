@@ -24,7 +24,7 @@ def cli():
 @click.option("--run_ids", "-r", type=str, default=None)
 @click.option("--fn", default=None)
 @click.option("--module", default=None)
-def tb(run_ids: str, module: str, fn:str):
+def tb(run_ids: str, module: str, fn: str):
     db = TerraDatabase()
 
     if run_ids is not None:
@@ -35,7 +35,6 @@ def tb(run_ids: str, module: str, fn:str):
         module = importlib.import_module(module)
         fn = getattr(module, fn)
         subprocess.call(["tensorboard", "--logdir", Task._get_task_dir(fn)])
-    
 
 
 @cli.command()
