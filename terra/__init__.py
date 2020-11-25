@@ -153,7 +153,7 @@ class Task:
 
                     init_logging(os.path.join(run_dir, "task.log"))
                     init_task_notifications(run_id=run.id)
-                    print(f"task: {fn.__name__}, run_id={run.id}")
+                    print(f"task: {fn.__name__}, run_id={run.id}", flush=True)
 
                     # load node inputs
                     args_dict = load_nested_artifacts(args_dict)
