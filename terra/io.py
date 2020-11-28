@@ -7,6 +7,7 @@ import pickle
 
 import pandas as pd
 import numpy as np
+import torch
 
 from terra.utils import ensure_dir_exists
 
@@ -186,3 +187,29 @@ def write_nparray(out, path):
 def read_nparray(path):
     path = path + ".npy" if not path.endswith(".npy") else path
     return np.load(path)
+
+
+@writer(np.ndarray)
+def write_nparray(out, path):
+    path = path + ".npy" if not path.endswith(".npy") else path
+    np.save(path, out)
+    return path
+
+
+@reader(np.ndarray)
+def read_nparray(path):
+    path = path + ".npy" if not path.endswith(".npy") else path
+    return np.load(path)
+
+
+@writer(torch.Tensor)
+def write_tensor(out, path):
+    path = path + ".pt" if not path.endswith(".pt") else path
+    torch.save(out, path)
+    return path
+
+
+@reader(torch.Tensor)
+def read_tensor(path):
+    path = path + ".pt" if not path.endswith(".pt") else path
+    return torch.load(path)
