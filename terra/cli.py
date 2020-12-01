@@ -158,3 +158,30 @@ def _write_config_skeleton(config_path, module, fn):
         )
         f.flush()
         f.close()
+
+
+@cli.command()
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
+def config(module: str, fn: str):
+    print("importing module...")
+    module_str, fn_str = module, fn
+    module = importlib.import_module(module_str)
+    fn = getattr(module, fn_str)
+
+    if not isinstance(fn, Task):
+        raise ValueError(
+            f"The function {fn} is not a task. "
+            "Use the `Task.make_task` decorator to turn it into a task."
+        )
+
+    task_dir = Task._get_task_dir(fn)
+
+    config_path = os.path.join(task_dir, "config.py")
+
+    if not os.path.exists(config_path):
+        _write_config_skeleton(config_path, module_str, fn_str)
+    
+    print(f"config path: {config_path}")
+
+
