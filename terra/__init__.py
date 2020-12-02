@@ -1,15 +1,16 @@
 """ The `task` module provides a framework for running reproducible analyses."""
 from __future__ import annotations
 import os
-import sys
-import platform
-import traceback
 from datetime import datetime
 from functools import wraps
 from inspect import getcallargs
 from pip._internal.operations import freeze
 import socket
+import sys
+import platform
+import traceback
 
+import pandas as pd
 
 from terra.git import log_git_status
 from terra.utils import ensure_dir_exists
@@ -21,7 +22,7 @@ from terra.notify import (
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
-from terra.database import get_session, Run
+from terra.database import get_session, Run, TerraDatabase
 
 
 class Task:
@@ -84,6 +85,14 @@ class Task:
             )
         )
         return load_nested_artifacts(artifacts) if load else artifacts
+
+    def get_runs(self):
+        db = TerraDatabase()
+        runs = db.get_runs(fns=self.__name__)
+        df = pd.DataFrame([run.__dict__ for run in runs])
+        return df[
+            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
+        ]
 
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)
