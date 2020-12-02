@@ -46,6 +46,10 @@ class Artifact:
 
     def __str__(self):
         return str(self.serialize())
+    
+    @property
+    def run_id(self):
+        return int(os.path.basename(self.run_dir))
 
 
 def load_nested_artifacts(obj: Union[list, dict]):
