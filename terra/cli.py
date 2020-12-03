@@ -1,17 +1,21 @@
 """
 """
 import importlib
+from json.decoder import JSONDecodeError
 import os
 import subprocess
 import pydoc
 import shutil
 from typing import List
+from datetime import datetime
 
 import pandas as pd
 import click
+from tqdm import tqdm
 
 from terra import Task
 from terra.database import TerraDatabase
+from terra.io import json_load, get_nested_artifact_paths
 from terra.utils import ensure_dir_exists
 
 
@@ -85,6 +89,68 @@ def rm(run_id: int):
         db.rm_runs(run.id)
         shutil.rmtree(run.run_dir)
         print(f"Removed run with id {run_id}")
+
+
+@cli.command()
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
+@click.option("--start_date", type=str)
+@click.option("--end_date", type=str)
+@click.option("--hanging_only", is_flag=True, default=False)
+def rm_artifacts(
+    module: str, fn: str, start_date: str, end_date: str, hanging_only: bool
+):
+    db = TerraDatabase()
+    date_format = "%m-%d-%Y"
+    date_range = (
+        datetime.strptime(start_date, date_format),
+        datetime.strptime(end_date, date_format),
+    )
+    runs = db.get_runs(fns=fn, modules=module, date_range=date_range)
+
+    if len(runs) == 0:
+        print("Query returned no tasks.")
+        return
+
+    df = pd.DataFrame([run.__dict__ for run in runs])
+    pydoc.pipepager(
+        df[
+            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
+        ].to_string(index=False),
+        "less -R",
+    )
+    print(f"{hanging_only=}")
+    print(f"Removing artifacts from {len(df)} runs of tasks {df['fn'].unique()}")
+    if not click.confirm(
+        f"Do you want to remove artifacts for the run_ids you just queried?"
+    ):
+        print("aborted")
+        return
+    for run_dir in tqdm(df.run_dir):
+        artifacts_dir = os.path.join(run_dir, "artifacts")
+        if os.path.isdir(artifacts_dir):
+            if hanging_only:
+                artifact_paths = set(
+                    [os.path.join(artifacts_dir, x) for x in os.listdir(artifacts_dir)]
+                )
+                for group in ["checkpoint", "outputs", "inputs"]:
+                    path = os.path.join(run_dir, f"{group}.json")
+                    if os.path.isfile(path):
+                        try:
+                            out = json_load(path)
+                        except JSONDecodeError:
+                            print(f"Malformed JSON at {path}")
+                            continue
+                        not_hanging = get_nested_artifact_paths(out)
+                        artifact_paths -= set(not_hanging)
+                for path in artifact_paths:
+                    if os.path.isfile(path):
+                        os.remove(path)
+            else:
+                try:
+                    shutil.rmtree(run_dir)
+                except OSError as e:
+                    print("Error: %s - %s." % (e.filename, e.strerror))
 
 
 @cli.command()
@@ -181,7 +247,5 @@ def config(module: str, fn: str):
 
     if not os.path.exists(config_path):
         _write_config_skeleton(config_path, module_str, fn_str)
-    
+
     print(f"config path: {config_path}")
-
-

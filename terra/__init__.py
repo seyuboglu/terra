@@ -15,7 +15,7 @@ import pandas as pd
 from terra.git import log_git_status
 from terra.utils import ensure_dir_exists
 from terra.logging import init_logging
-from terra.io import Artifact, json_dump, json_load, load_nested_artifacts
+from terra.io import json_dump, json_load, load_nested_artifacts, rm_nested_artifacts
 from terra.notify import (
     notify_task_completed,
     init_task_notifications,
@@ -86,13 +86,32 @@ class Task:
         )
         return load_nested_artifacts(artifacts) if load else artifacts
 
+    def rm_artifacts(
+        self, group_name: str, run_id: int
+    ):
+        artifacts = json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            )
+        )
+        rm_nested_artifacts(artifacts)
+
     def get_runs(self):
         db = TerraDatabase()
         runs = db.get_runs(fns=self.__name__)
         df = pd.DataFrame([run.__dict__ for run in runs])
-        return df[
-            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
-        ]
+        return df[["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]]
+
+    def get_log(self, run_id: int = None):
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
+
+        log_path = os.path.join(
+            _get_run_dir(task_dir=self.task_dir, idx=run_id), "task.log"
+        )
+
+        with open(log_path, mode="r") as f:
+            return f.read()
 
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)

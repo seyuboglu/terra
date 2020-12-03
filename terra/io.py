@@ -44,6 +44,10 @@ class Artifact:
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
 
+    def rm(self):
+        path = self._get_path()
+        os.remove(path)
+
     def __str__(self):
         return str(self.serialize())
     
@@ -63,6 +67,31 @@ def load_nested_artifacts(obj: Union[list, dict]):
         return obj.load()
     else:
         return obj
+
+def get_nested_artifact_paths(obj: Union[list, dict]):
+    if isinstance(obj, list) or isinstance(obj, tuple):
+        arts = []
+        for v in obj:
+            arts.extend(get_nested_artifact_paths(v))
+        return arts
+    elif isinstance(obj, dict):
+        arts = []
+        for v in obj.values():
+            arts.extend(get_nested_artifact_paths(v))
+        return arts
+    elif isinstance(obj, Artifact):
+        return [obj._get_path()]
+    return []
+
+def rm_nested_artifacts(obj: Union[list, dict]):
+    if isinstance(obj, list):
+        [rm_nested_artifacts(v) for v in obj]
+    elif isinstance(obj, tuple):
+        (rm_nested_artifacts(v) for v in obj)
+    elif isinstance(obj, dict):
+        {k: rm_nested_artifacts(v) for k, v in obj.items()}
+    elif isinstance(obj, Artifact):
+        obj.rm()
 
 
 def json_dump(obj: Union[dict, list], path: str, run_dir: str):

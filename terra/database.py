@@ -1,5 +1,7 @@
 import os
-from typing import Union, List
+from typing import Union, List, Tuple
+from datetime import datetime
+
 
 import pandas as pd
 import sqlalchemy
@@ -50,6 +52,7 @@ class TerraDatabase:
         modules: Union[str, List[str]] = None,
         fns: Union[str, List[str]] = None,
         statuses: Union[str, List[str]] = None,
+        date_range: Tuple[datetime] = None
     ) -> List[Run]:
         session = self.Session()
         query = session.query(Run)
@@ -69,6 +72,10 @@ class TerraDatabase:
         if statuses is not None:
             statuses = [statuses] if isinstance(statuses, str) else statuses
             query = query.filter(Run.status.in_(statuses))
+        
+        if date_range is not None:
+            query = query.filter(Run.start_time > date_range[0])
+            query = query.filter(Run.start_time < date_range[1])
 
         query = query.order_by(desc(Run.start_time))
 
