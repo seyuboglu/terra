@@ -12,7 +12,7 @@ import traceback
 
 import pandas as pd
 
-from terra.git import log_git_status
+from terra.git import log_git_status, log_fn_source
 from terra.utils import ensure_dir_exists
 from terra.logging import init_logging
 from terra.io import json_dump, json_load, load_nested_artifacts, rm_nested_artifacts
@@ -37,10 +37,14 @@ class Task:
 
     @staticmethod
     def _get_task_dir(task: Task):
+        module = task.__module__.split(".")
+        if task.__module__ != "__main__":
+            module = module[1:] # TODO: take full path for everything
+
         task_dir = os.path.join(
             TERRA_CONFIG["storage_dir"],
             "tasks",
-            *task.__module__.split(".")[1:],  # TODO: take full path
+            *module,  
             task.__name__,
         )
         return task_dir
@@ -116,7 +120,8 @@ class Task:
     def __call__(self, *args, **kwargs):
         return self.fn(*args, **kwargs)
 
-    def _get_wrapper(self, fn):
+    def _get_wrapper(self, fn):            
+
         @wraps(fn)
         def wrapper(*args, **kwargs):
             # `silence_task` is an optional parameter that when passed to a task call
@@ -157,6 +162,8 @@ class Task:
                     git_status = log_git_status(run_dir)
                     run.git_commit = git_status["commit_hash"]
                     run.git_dirty = len(git_status["dirty"]) > 0
+                    if fn.__module__ == "__main__":
+                        log_fn_source(run_dir=run_dir, fn=fn)
                     session.commit()
 
                     # write additional metadata

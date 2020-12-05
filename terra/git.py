@@ -2,6 +2,7 @@ import os
 import subprocess
 import hashlib
 import shutil
+import inspect
 
 from terra.utils import ensure_dir_exists
 from terra.settings import TERRA_CONFIG
@@ -15,7 +16,15 @@ def _get_src_dump_path(run_dir, file_path):
     return dump_path
 
 
-def log_git_status(run_dir, exts_to_dump=None) -> dict:
+def log_fn_source(run_dir: str, fn: callable):
+    src_dir  = os.path.join(run_dir, "src")
+    ensure_dir_exists(src_dir)
+    src_path = os.path.join(src_dir, "__main__.py")
+    with open(src_path, 'w') as f:
+        f.write(inspect.getsource(fn))
+
+
+def log_git_status(run_dir: str, exts_to_dump=None) -> dict:
     """Check if git is dirty, dumping dirty files to run_dir if so. Also return dict with  commit_hash and a list of dirty
     files.
     """
