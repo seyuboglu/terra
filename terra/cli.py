@@ -1,17 +1,23 @@
 """
 """
-import argparse
 import importlib
+from json.decoder import JSONDecodeError
 import os
 import subprocess
 import pydoc
+import shutil
+from typing import List
+from datetime import datetime
 
 import pandas as pd
 import click
+from tqdm import tqdm
 
 from terra import Task
-from terra.database import TerraDatabase, get_session
+from terra.database import TerraDatabase
+from terra.io import json_load, get_nested_artifact_paths
 from terra.utils import ensure_dir_exists
+
 
 @click.group()
 def cli():
@@ -19,11 +25,36 @@ def cli():
 
 
 @cli.command()
+@click.option("--run_ids", "-r", type=str, default=None)
+@click.option("--fn", default=None)
+@click.option("--module", default=None)
+def tb(run_ids: str, module: str, fn: str):
+    db = TerraDatabase()
+
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+        specs = [f"{run.id}:{run.run_dir}" for run in db.get_runs(run_ids=run_ids)]
+        subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
+    elif fn is not None and module is not None:
+        module = importlib.import_module(module)
+        fn = getattr(module, fn)
+        subprocess.call(["tensorboard", "--logdir", Task._get_task_dir(fn)])
+
+
+@cli.command()
 @click.option("--module", default=None)
 @click.option("--fn", default=None)
-def ls(module: str, fn: str):
+@click.option("--status", default=None)
+@click.option("--run_ids", "-r", type=str, default=None)
+def ls(module: str, fn: str, status: str, run_ids: str):
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+
     db = TerraDatabase()
-    runs = db.get_runs(modules=module, fns=fn)
+    runs = db.get_runs(modules=module, fns=fn, statuses=status, run_ids=run_ids)
+    if len(runs) == 0:
+        print("Query returned no tasks.")
+        return
     df = pd.DataFrame([run.__dict__ for run in runs])
     pydoc.pipepager(
         df[
@@ -34,7 +65,17 @@ def ls(module: str, fn: str):
 
 
 @cli.command()
-@click.argument("run_id")
+def du():
+    from terra.settings import TERRA_CONFIG
+
+    working_dir = os.getcwd()
+    os.chdir(TERRA_CONFIG["storage_dir"])
+    subprocess.call(["du", "-sh", "--", os.path.join(TERRA_CONFIG["storage_dir"])])
+    os.chdir(working_dir)
+
+
+@cli.command()
+@click.argument("run_id", type=int)
 def rm(run_id: int):
     db = TerraDatabase()
     runs = db.get_runs(run_ids=run_id)
@@ -42,14 +83,79 @@ def rm(run_id: int):
         raise ValueError(f"Could not find run with id {run_id}.")
     run = runs[0]
 
-    if click.confirm(f"Are you sure you want to remove run with id {run_id}: {run}"):
-        db.rm_runs(run_id)
+    if click.confirm(
+        f"Are you sure you want to remove run with id {run.id}: \n {run.get_summary()}"
+    ):
+        db.rm_runs(run.id)
+        shutil.rmtree(run.run_dir)
         print(f"Removed run with id {run_id}")
 
 
 @cli.command()
-@click.argument("module")
-@click.argument("fn")
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
+@click.option("--start_date", type=str)
+@click.option("--end_date", type=str)
+@click.option("--hanging_only", is_flag=True, default=False)
+def rm_artifacts(
+    module: str, fn: str, start_date: str, end_date: str, hanging_only: bool
+):
+    db = TerraDatabase()
+    date_format = "%m-%d-%Y"
+    date_range = (
+        datetime.strptime(start_date, date_format),
+        datetime.strptime(end_date, date_format),
+    )
+    runs = db.get_runs(fns=fn, modules=module, date_range=date_range)
+
+    if len(runs) == 0:
+        print("Query returned no tasks.")
+        return
+
+    df = pd.DataFrame([run.__dict__ for run in runs])
+    pydoc.pipepager(
+        df[
+            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
+        ].to_string(index=False),
+        "less -R",
+    )
+    print(f"{hanging_only=}")
+    print(f"Removing artifacts from {len(df)} runs of tasks {df['fn'].unique()}")
+    if not click.confirm(
+        f"Do you want to remove artifacts for the run_ids you just queried?"
+    ):
+        print("aborted")
+        return
+    for run_dir in tqdm(df.run_dir):
+        artifacts_dir = os.path.join(run_dir, "artifacts")
+        if os.path.isdir(artifacts_dir):
+            if hanging_only:
+                artifact_paths = set(
+                    [os.path.join(artifacts_dir, x) for x in os.listdir(artifacts_dir)]
+                )
+                for group in ["checkpoint", "outputs", "inputs"]:
+                    path = os.path.join(run_dir, f"{group}.json")
+                    if os.path.isfile(path):
+                        try:
+                            out = json_load(path)
+                        except JSONDecodeError:
+                            print(f"Malformed JSON at {path}")
+                            continue
+                        not_hanging = get_nested_artifact_paths(out)
+                        artifact_paths -= set(not_hanging)
+                for path in artifact_paths:
+                    if os.path.isfile(path):
+                        os.remove(path)
+            else:
+                try:
+                    shutil.rmtree(run_dir)
+                except OSError as e:
+                    print("Error: %s - %s." % (e.filename, e.strerror))
+
+
+@cli.command()
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
 @click.option("--rerun_id", default=None, type=int)
 def run(module: str, fn: str, rerun_id: int):
     print("importing module...")
@@ -72,10 +178,11 @@ def run(module: str, fn: str, rerun_id: int):
             _write_config_skeleton(config_path, module_str, fn_str)
 
         # this can be changed to vi or your preferred editor
-        return_code = subprocess.call(["code", "--wait", config_path])
-        if return_code == 1:
-            print("Using vim instead.")
-            subprocess.call(["vi", config_path])
+        subprocess.call(["vi", config_path])
+        # return_code = subprocess.call(["code", "--wait", config_path])
+        # if return_code != 0:
+        #    print("Using vim instead.")
+        #    subprocess.call(["vi", config_path])
 
         # load config module
         config = _load_config(config_path)
@@ -117,3 +224,28 @@ def _write_config_skeleton(config_path, module, fn):
         )
         f.flush()
         f.close()
+
+
+@cli.command()
+@click.argument("module", type=str)
+@click.argument("fn", type=str)
+def config(module: str, fn: str):
+    print("importing module...")
+    module_str, fn_str = module, fn
+    module = importlib.import_module(module_str)
+    fn = getattr(module, fn_str)
+
+    if not isinstance(fn, Task):
+        raise ValueError(
+            f"The function {fn} is not a task. "
+            "Use the `Task.make_task` decorator to turn it into a task."
+        )
+
+    task_dir = Task._get_task_dir(fn)
+
+    config_path = os.path.join(task_dir, "config.py")
+
+    if not os.path.exists(config_path):
+        _write_config_skeleton(config_path, module_str, fn_str)
+
+    print(f"config path: {config_path}")

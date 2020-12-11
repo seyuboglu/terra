@@ -1,16 +1,19 @@
 import os
-from typing import Union, List
+from typing import Union, List, Tuple
+from datetime import datetime
+
 
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, desc
 from sqlalchemy.orm import sessionmaker
 
 from terra.settings import TERRA_CONFIG
 from terra.utils import ensure_dir_exists
 
 Base = declarative_base()
+
 
 class Run(Base):
     __tablename__ = "runs"
@@ -28,6 +31,8 @@ class Run(Base):
     git_commit = Column(String)
     git_dirty = Column(Boolean)
 
+    def get_summary(self):
+        return f"module={self.module}, fn={self.fn}, status={self.status}, run_dir={self.run_dir}"
 
 
 class Ref(Base):
@@ -46,8 +51,11 @@ class TerraDatabase:
         run_ids: Union[int, List[int]] = None,
         modules: Union[str, List[str]] = None,
         fns: Union[str, List[str]] = None,
+        statuses: Union[str, List[str]] = None,
+        date_range: Tuple[datetime] = None
     ) -> List[Run]:
-        query = self.Session().query(Run)
+        session = self.Session()
+        query = session.query(Run)
 
         if run_ids is not None:
             run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
@@ -59,16 +67,29 @@ class TerraDatabase:
 
         if fns is not None:
             fns = [fns] if isinstance(fns, str) else fns
-            query = query.filter(Run.module.in_(fns))
+            query = query.filter(Run.fn.in_(fns))
 
-        return query.all()
+        if statuses is not None:
+            statuses = [statuses] if isinstance(statuses, str) else statuses
+            query = query.filter(Run.status.in_(statuses))
+        
+        if date_range is not None:
+            query = query.filter(Run.start_time > date_range[0])
+            query = query.filter(Run.start_time < date_range[1])
+
+        query = query.order_by(desc(Run.start_time))
+
+        out = query.all()
+        session.close()
+        return out
 
     def rm_runs(self, run_ids: Union[int, List[int]]):
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
         session = self.Session()
         query = session.query(Run).filter(Run.id.in_(run_ids))
-        query.update({"status": "deleted"})
+        query.update({Run.status: "deleted"}, synchronize_session=False)
         session.commit()
+        session.close()
 
 
 def get_session(storage_dir: str = None, create: bool = True):

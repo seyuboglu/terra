@@ -1,11 +1,13 @@
 import os
 import json
 import uuid
-from typing import Union
+from typing import Union, Iterable, Mapping
 import importlib
+import pickle
 
 import pandas as pd
 import numpy as np
+import torch
 
 from terra.utils import ensure_dir_exists
 
@@ -42,11 +44,63 @@ class Artifact:
     def is_serialized_artifact(dct: dict):
         return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
 
+    def rm(self):
+        path = self._get_path()
+        os.remove(path)
+
+    def __str__(self):
+        return str(self.serialize())
+    
+    @property
+    def run_id(self):
+        return int(os.path.basename(self.run_dir))
+
+
+def load_nested_artifacts(obj: Union[list, dict]):
+    if isinstance(obj, list):
+        return [load_nested_artifacts(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return (load_nested_artifacts(v) for v in obj)
+    elif isinstance(obj, dict):
+        return {k: load_nested_artifacts(v) for k, v in obj.items()}
+    elif isinstance(obj, Artifact):
+        return obj.load()
+    else:
+        return obj
+
+def get_nested_artifact_paths(obj: Union[list, dict]):
+    if isinstance(obj, list) or isinstance(obj, tuple):
+        arts = []
+        for v in obj:
+            arts.extend(get_nested_artifact_paths(v))
+        return arts
+    elif isinstance(obj, dict):
+        arts = []
+        for v in obj.values():
+            arts.extend(get_nested_artifact_paths(v))
+        return arts
+    elif isinstance(obj, Artifact):
+        return [obj._get_path()]
+    return []
+
+def rm_nested_artifacts(obj: Union[list, dict]):
+    if isinstance(obj, list):
+        [rm_nested_artifacts(v) for v in obj]
+    elif isinstance(obj, tuple):
+        (rm_nested_artifacts(v) for v in obj)
+    elif isinstance(obj, dict):
+        {k: rm_nested_artifacts(v) for k, v in obj.items()}
+    elif isinstance(obj, Artifact):
+        obj.rm()
+
 
 def json_dump(obj: Union[dict, list], path: str, run_dir: str):
     with open(path, "w") as f:
         encoder = TerraEncoder(run_dir=run_dir, indent=4)
-        f.write(encoder.encode(obj))
+        encoded = encoder.encode(obj)
+        f.write(encoded)
+        decoder = TerraDecoder()
+        return decoder.decode(encoded)
 
 
 def json_load(path: str):
@@ -61,13 +115,14 @@ class TerraEncoder(json.JSONEncoder):
         self.run_dir = run_dir
 
     def default(self, obj):
-        if callable(obj) or isinstance(obj, type):
+        if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
             return {"__module__": obj.__module__, "__name__": obj.__name__}
-        if isinstance(obj, Artifact):
+        elif isinstance(obj, Artifact):
             return obj.serialize()
-        elif type(obj) in writer_registry:
+        else:
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
+
         return json.JSONEncoder.default(self, obj)
 
 
@@ -96,10 +151,19 @@ def reader(read_type: type):
 
 
 def generalized_read(path, read_type: type):
-    if read_type not in reader_registry:
-        raise ValueError(f"Object type {read_type} not supported.")
-    else:
+    if hasattr(read_type, "__terra_read__"):
+        return read_type.__terra_read__(path)
+
+    elif read_type in reader_registry:
         return reader_registry[read_type](path)
+
+    else:
+        try:
+            new_path = path + ".pkl"
+            with open(new_path, "rb") as f:
+                return pickle.load(f)
+        except pickle.UnpicklingError as e:
+            raise ValueError(f"Object type {read_type} not pickleable.")
 
 
 writer_registry = {}
@@ -114,10 +178,17 @@ def writer(write_type: type):
 
 
 def generalized_write(out, path):
-    if type(out) not in writer_registry:
-        raise ValueError(f"Type {type(out)} not supported.")
-
-    new_path = writer_registry[type(out)](out, path)
+    if hasattr(out, "__terra_write__"):
+        new_path = out.__terra_write__(path)
+    elif type(out) in writer_registry:
+        new_path = writer_registry[type(out)](out, path)
+    else:
+        try:
+            new_path = path + ".pkl"
+            with open(new_path, "wb") as f:
+                pickle.dump(out, f)
+        except pickle.PicklingError as e:
+            raise ValueError(f"Type {type(out)} not pickleable.")
 
     if new_path is None:
         return path
@@ -149,3 +220,29 @@ def write_nparray(out, path):
 def read_nparray(path):
     path = path + ".npy" if not path.endswith(".npy") else path
     return np.load(path)
+
+
+@writer(np.ndarray)
+def write_nparray(out, path):
+    path = path + ".npy" if not path.endswith(".npy") else path
+    np.save(path, out)
+    return path
+
+
+@reader(np.ndarray)
+def read_nparray(path):
+    path = path + ".npy" if not path.endswith(".npy") else path
+    return np.load(path)
+
+
+@writer(torch.Tensor)
+def write_tensor(out, path):
+    path = path + ".pt" if not path.endswith(".pt") else path
+    torch.save(out, path)
+    return path
+
+
+@reader(torch.Tensor)
+def read_tensor(path):
+    path = path + ".pt" if not path.endswith(".pt") else path
+    return torch.load(path)
