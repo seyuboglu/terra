@@ -3,6 +3,7 @@
 **.txt
 /test_storage_dir
 terra_config.json
+**/.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
