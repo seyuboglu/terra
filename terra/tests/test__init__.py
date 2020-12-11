@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 import json
-from multiprocessing import Pool
 
+import ray 
 
-from terra import Task
+from terra import Task, init_remote
 from terra.database import TerraDatabase
 from terra.settings import TERRA_CONFIG
 
@@ -277,30 +277,29 @@ def test_failure(tmpdir):
         assert run.status == "failure"
 
 
-@Task.make_task
-def fn_a(x, run_dir=None):
-    return x
-
-
-def fn(x):
-    """ need fn because can't pass decorated fn to pool.map """
-    return fn_a(x)
-
-
 def test_parallel(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    fn_a.task_dir = Task._get_task_dir(fn_a)
+
+    init_remote()
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return x
 
     db = TerraDatabase()
 
-    # do not run first task in parallel
-    inps = list(range(1, 100))
-    with Pool(5) as p:
-        p.map(fn, inps)
+    obj_refs = []
+    inps = list(range(1, 25))
+    for x in inps:
+        obj_refs.append(fn_a.remote(x, return_run_id=True, terra_config=TERRA_CONFIG))
+
+    run_ids, artifacts = zip(*[ray.get(obj_ref) for obj_ref in obj_refs])
 
     # check that all inputs (inps) are returned, since (fn_a is identity)
-    assert set([fn_a.out(run_id=run_id) for run_id in range(1, len(inps) + 1)]) == set(
-        inps
-    )
+    assert set(artifacts) == set(inps)
+
+    # check that all inputs (inps) are returned, since (fn_a is identity)
+    assert set([fn_a.out(run_id=run_id) for run_id in run_ids]) == set(inps)
+
     # check that we have a run_id for each input
     assert set([run.id for run in db.get_runs()]) == set(range(1, len(inps) + 1))
