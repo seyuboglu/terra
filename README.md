@@ -1,7 +1,6 @@
-# Terra
-Terra is a package that enables reproducible data science workflows. 
-
-## Using Terra with your project
+# 🌍 terra
+A Python package that transforms free-form research workflows into a reproducible pipeline. 
+## setup
 Clone the terra repo:
 ```
 git clone https://github.com/seyuboglu/terra.git

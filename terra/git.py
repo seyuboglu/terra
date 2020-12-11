@@ -17,7 +17,7 @@ def _get_src_dump_path(run_dir, file_path):
 
 
 def log_fn_source(run_dir: str, fn: callable):
-    src_dir  = os.path.join(run_dir, "src")
+    src_dir = os.path.join(run_dir, "src")
     ensure_dir_exists(src_dir)
     src_path = os.path.join(src_dir, "__main__.py")
     with open(src_path, 'w') as f:

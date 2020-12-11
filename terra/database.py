@@ -95,7 +95,6 @@ class TerraDatabase:
 def get_session(storage_dir: str = None, create: bool = True):
 
     storage_dir = TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
-
     ensure_dir_exists(storage_dir)
     db_path = os.path.join(storage_dir, "terra.sqlite")
     db_exists = os.path.exists(db_path)
