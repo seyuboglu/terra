@@ -14,7 +14,7 @@ import click
 from tqdm import tqdm
 
 from terra import Task
-from terra.database import TerraDatabase
+import terra.database as tdb
 from terra.io import json_load, get_nested_artifact_paths
 from terra.utils import ensure_dir_exists
 
@@ -29,11 +29,12 @@ def cli():
 @click.option("--fn", default=None)
 @click.option("--module", default=None)
 def tb(run_ids: str, module: str, fn: str):
-    db = TerraDatabase()
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
-        specs = [f"{run.id}:{run.run_dir}" for run in db.get_runs(run_ids=run_ids)]
+        specs = [
+            f"{run.id}:{run.run_dir}" for run in tdb.get_runs(run_ids=run_ids, df=False)
+        ]
         subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
     elif fn is not None and module is not None:
         module = importlib.import_module(module)
@@ -50,8 +51,9 @@ def ls(module: str, fn: str, status: str, run_ids: str):
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
 
-    db = TerraDatabase()
-    runs = db.get_runs(modules=module, fns=fn, statuses=status, run_ids=run_ids)
+    runs = tdb.get_runs(
+        modules=module, fns=fn, statuses=status, run_ids=run_ids, df=False
+    )
     if len(runs) == 0:
         print("Query returned no tasks.")
         return
@@ -77,8 +79,7 @@ def du():
 @cli.command()
 @click.argument("run_id", type=int)
 def rm(run_id: int):
-    db = TerraDatabase()
-    runs = db.get_runs(run_ids=run_id)
+    runs = tdb.get_runs(run_ids=run_id, df=False)
     if len(runs) == 0:
         raise ValueError(f"Could not find run with id {run_id}.")
     run = runs[0]
@@ -86,7 +87,7 @@ def rm(run_id: int):
     if click.confirm(
         f"Are you sure you want to remove run with id {run.id}: \n {run.get_summary()}"
     ):
-        db.rm_runs(run.id)
+        tdb.rm_runs(run.id)
         shutil.rmtree(run.run_dir)
         print(f"Removed run with id {run_id}")
 
@@ -100,13 +101,12 @@ def rm(run_id: int):
 def rm_artifacts(
     module: str, fn: str, start_date: str, end_date: str, hanging_only: bool
 ):
-    db = TerraDatabase()
     date_format = "%m-%d-%Y"
     date_range = (
         datetime.strptime(start_date, date_format),
         datetime.strptime(end_date, date_format),
     )
-    runs = db.get_runs(fns=fn, modules=module, date_range=date_range)
+    runs = tdb.get_runs(fns=fn, modules=module, date_range=date_range, df=False)
 
     if len(runs) == 0:
         print("Query returned no tasks.")

@@ -1,18 +1,23 @@
 import numpy as np
 import pandas as pd
 import json
+from importlib import reload
 
-import ray 
+import ray
 
+import terra
 from terra import Task, init_remote
-from terra.database import TerraDatabase
+import terra.database as tdb
 from terra.settings import TERRA_CONFIG
 
-TERRA_CONFIG["notify"] = True
+TERRA_CONFIG["notify"] = False
 
 
 def test_make_task(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(run_dir=None):
@@ -23,6 +28,9 @@ def test_make_task(tmpdir):
 
 def test_np_pipeline(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -45,6 +53,9 @@ def test_np_pipeline(tmpdir):
 
 def test_pandas_pipeline(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -73,6 +84,9 @@ def test_pandas_pipeline(tmpdir):
 
 def test_scalar_pipeline(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -95,6 +109,9 @@ def test_scalar_pipeline(tmpdir):
 
 def test_nested_np_pipeline(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -112,6 +129,9 @@ def test_nested_np_pipeline(tmpdir):
 
 def test_out_scalar(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_b(x, run_dir=None):
@@ -132,6 +152,9 @@ def test_out_scalar(tmpdir):
 
 def test_out_np(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -151,6 +174,9 @@ def test_out_np(tmpdir):
 
 def test_out_pandas(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -160,6 +186,84 @@ def test_out_pandas(tmpdir):
     fn_a(10)
     assert isinstance(fn_a.out().load(), pd.DataFrame)
     assert len(fn_a.out().load()) == 10
+
+
+def test_run_table(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
+
+    @Task.make_task
+    def fn_c(x, run_dir=None):
+        return x["a"] + x["b"][0] + x["b"][0]
+
+    fn_a(1)
+    fn_c(fn_a.out())
+
+    run_df = tdb.get_runs()
+    assert len(run_df) == 2
+    assert (run_df.status == "success").all()
+    assert set(run_df.fn) == set(["fn_a", "fn_c"])
+
+
+def test_artifact_table(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
+
+    @Task.make_task
+    def fn_c(x, run_dir=None):
+        return x["a"] + x["b"][0] + x["b"][0]
+
+    fn_a(np.ones(4) * 2)
+    fn_c(fn_a.out())
+
+    artifact_df = tdb.get_artifacts()
+    assert len(artifact_df) == 5
+    assert (artifact_df.type == "<class 'numpy.ndarray'>").all()
+
+
+def test_artifact_load_table(tmpdir):
+    TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
+
+    @Task.make_task
+    def fn_a(x, run_dir=None):
+        return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
+
+    @Task.make_task
+    def fn_c(x, run_dir=None):
+        return x["a"] + x["b"][0] + x["b"][0]
+
+    fn_a(np.ones(4) * 2)
+    fn_c(fn_a.out())
+    fn_a(fn_c.out())
+
+    run_df = tdb.get_runs()
+    artifact_df = tdb.get_artifacts()
+    artifact_load_df = tdb.get_artifact_loads()
+    df = artifact_load_df.merge(
+        artifact_df[["creating_run_id", "id"]], left_on="artifact_id", right_on="id"
+    )
+    df = df.merge(run_df[["id", "fn"]], left_on="creating_run_id", right_on="id")
+
+    assert len(df) == 4
+    assert (
+        set(zip(df.creating_run_id, df.loading_run_id, df.artifact_id))
+        == set([(1, 2, 2), (1, 2, 3), (1, 2, 4), (2, 3, 5)])
+    )
 
 
 class CustomClass:
@@ -179,6 +283,9 @@ class CustomClass:
 
 def test_out_custom(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -196,6 +303,9 @@ def test_out_custom(tmpdir):
 
 def test_inp_scalar(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_b(x, run_dir=None):
@@ -207,6 +317,10 @@ def test_inp_scalar(tmpdir):
 
 def test_inp_np(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
+
     x = np.ones(4)
 
     @Task.make_task
@@ -219,6 +333,9 @@ def test_inp_np(tmpdir):
 
 def test_inp_pandas(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(10)])
 
@@ -232,6 +349,9 @@ def test_inp_pandas(tmpdir):
 
 def test_inp_custom(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(x, run_dir=None):
@@ -245,6 +365,9 @@ def test_inp_custom(tmpdir):
 def test_kwargs_custom(tmpdir):
     """Functions with kwargs are a bit of an edge case"""
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     def fn_b(x, y, z):
         return x * y + z
@@ -264,6 +387,9 @@ def test_kwargs_custom(tmpdir):
 
 def test_failure(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     @Task.make_task
     def fn_a(run_dir=None):
@@ -272,21 +398,21 @@ def test_failure(tmpdir):
     try:
         fn_a()
     except ValueError:
-        db = TerraDatabase()
-        run = db.get_runs(run_ids=1)[0]
+        run = tdb.get_runs(run_ids=1, df=False)[0]
         assert run.status == "failure"
 
 
 def test_parallel(tmpdir):
     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+    terra.database.Session = (
+        tdb.get_session()
+    )  # need to recreate Session with new tmpdir
 
     init_remote()
 
     @Task.make_task
     def fn_a(x, run_dir=None):
         return x
-
-    db = TerraDatabase()
 
     obj_refs = []
     inps = list(range(1, 25))
@@ -302,4 +428,6 @@ def test_parallel(tmpdir):
     assert set([fn_a.out(run_id=run_id) for run_id in run_ids]) == set(inps)
 
     # check that we have a run_id for each input
-    assert set([run.id for run in db.get_runs()]) == set(range(1, len(inps) + 1))
+    assert set([run.id for run in tdb.get_runs(df=False)]) == set(
+        range(1, len(inps) + 1)
+    )

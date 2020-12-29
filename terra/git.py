@@ -20,7 +20,7 @@ def log_fn_source(run_dir: str, fn: callable):
     src_dir = os.path.join(run_dir, "src")
     ensure_dir_exists(src_dir)
     src_path = os.path.join(src_dir, "__main__.py")
-    with open(src_path, 'w') as f:
+    with open(src_path, "w") as f:
         f.write(inspect.getsource(fn))
 
 

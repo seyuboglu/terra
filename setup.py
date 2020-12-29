@@ -28,6 +28,6 @@ setuptools.setup(
         "sqlalchemy",
         "click",
         "tqdm",
-        "torch"
+        "torch",
     ],
 )

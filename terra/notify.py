@@ -8,6 +8,7 @@ run_to_ts = {}
 
 
 def init_task_notifications(run_id: int):
+    return
     if not TERRA_CONFIG["notify"]:
         return
 
@@ -31,6 +32,7 @@ def init_task_notifications(run_id: int):
 
 
 def notify_task_completed(run_id: str):
+    return
     if not TERRA_CONFIG["notify"]:
         return
 
@@ -48,6 +50,7 @@ def notify_task_completed(run_id: str):
 
 
 def notify_task_error(run_id: str, msg: str):
+    return
     if not TERRA_CONFIG["notify"]:
         return
 
@@ -68,6 +71,7 @@ def notify_task_error(run_id: str, msg: str):
 
 
 def notify_task_checkpoint(run_id: str, msg: str):
+    return
     if not TERRA_CONFIG["notify"]:
         return
 

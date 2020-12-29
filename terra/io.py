@@ -10,39 +10,70 @@ import numpy as np
 import torch
 
 from terra.utils import ensure_dir_exists
+import terra.database as tdb
 
 
 class Artifact:
     def _get_path(self):
         ensure_dir_exists(os.path.join(self.run_dir, "artifacts"))
-        return os.path.join(self.run_dir, "artifacts", self.id)
+        return os.path.join(self.run_dir, "artifacts", self.key)
 
-    def serialize(self):
-        return {"__run_dir__": self.run_dir, "__id__": self.id, "__type__": self.type}
+    def load(self, run_id: int = None):
+        if run_id is not None:
+            session = tdb.Session()
+            entry = tdb.ArtifactLoad(artifact_id=self.id, loading_run_id=run_id)
+            session.add(entry)
+            session.commit()
+            session.close()
 
-    @classmethod
-    def deserialize(cls, dct):
-        artifact = cls()
-        artifact.run_dir = dct["__run_dir__"]
-        artifact.id = dct["__id__"]
-        artifact.type = dct["__type__"]
-        return artifact
-
-    def load(self):
         return generalized_read(self._get_path(), self.type)
 
     @classmethod
     def dump(cls, value, run_dir: str):
         artifact = cls()
         artifact.run_dir = run_dir
-        artifact.id = uuid.uuid4().hex
+        artifact.key = uuid.uuid4().hex
         artifact.type = type(value)
-        generalized_write(value, artifact._get_path())
+        path = artifact._get_path()
+        generalized_write(value, path)
+
+        # add to artifacts table
+        session = tdb.Session()
+        entry = tdb.ArtifactDump(
+            creating_run_id=artifact.run_id, path=path, type=str(artifact.type)
+        )
+        session.add(entry)
+        session.commit()
+        artifact.id = entry.id
+        session.close()
+
         return artifact
 
     @staticmethod
     def is_serialized_artifact(dct: dict):
-        return "__run_dir__" in dct and "__id__" in dct and "__type__" in dct
+        return (
+            "__id__" in dct
+            and "__run_dir__" in dct
+            and "__key__" in dct
+            and "__type__" in dct
+        )
+
+    def serialize(self):
+        return {
+            "__run_dir__": self.run_dir,
+            "__key__": self.key,
+            "__type__": self.type,
+            "__id__": self.id,
+        }
+
+    @classmethod
+    def deserialize(cls, dct):
+        artifact = cls()
+        artifact.run_dir = dct["__run_dir__"]
+        artifact.key = dct["__key__"]
+        artifact.id = dct["__id__"]
+        artifact.type = dct["__type__"]
+        return artifact
 
     def rm(self):
         path = self._get_path()
@@ -50,23 +81,24 @@ class Artifact:
 
     def __str__(self):
         return str(self.serialize())
-    
+
     @property
     def run_id(self):
         return int(os.path.basename(self.run_dir))
 
 
-def load_nested_artifacts(obj: Union[list, dict]):
+def load_nested_artifacts(obj: Union[list, dict], run_id: int = None):
     if isinstance(obj, list):
-        return [load_nested_artifacts(v) for v in obj]
+        return [load_nested_artifacts(v, run_id=run_id) for v in obj]
     elif isinstance(obj, tuple):
-        return (load_nested_artifacts(v) for v in obj)
+        return (load_nested_artifacts(v, run_id=run_id) for v in obj)
     elif isinstance(obj, dict):
-        return {k: load_nested_artifacts(v) for k, v in obj.items()}
+        return {k: load_nested_artifacts(v, run_id=run_id) for k, v in obj.items()}
     elif isinstance(obj, Artifact):
-        return obj.load()
+        return obj.load(run_id=run_id)
     else:
         return obj
+
 
 def get_nested_artifact_paths(obj: Union[list, dict]):
     if isinstance(obj, list) or isinstance(obj, tuple):
@@ -82,6 +114,7 @@ def get_nested_artifact_paths(obj: Union[list, dict]):
     elif isinstance(obj, Artifact):
         return [obj._get_path()]
     return []
+
 
 def rm_nested_artifacts(obj: Union[list, dict]):
     if isinstance(obj, list):
@@ -123,8 +156,6 @@ class TerraEncoder(json.JSONEncoder):
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
 
-        return json.JSONEncoder.default(self, obj)
-
 
 class TerraDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
@@ -162,7 +193,7 @@ def generalized_read(path, read_type: type):
             new_path = path + ".pkl"
             with open(new_path, "rb") as f:
                 return pickle.load(f)
-        except pickle.UnpicklingError as e:
+        except pickle.UnpicklingError:
             raise ValueError(f"Object type {read_type} not pickleable.")
 
 
@@ -187,7 +218,7 @@ def generalized_write(out, path):
             new_path = path + ".pkl"
             with open(new_path, "wb") as f:
                 pickle.dump(out, f)
-        except pickle.PicklingError as e:
+        except pickle.PicklingError:
             raise ValueError(f"Type {type(out)} not pickleable.")
 
     if new_path is None:
@@ -207,19 +238,6 @@ def write_dataframe(out, path):
 def read_dataframe(path):
     path = path + ".csv" if not path.endswith(".csv") else path
     return pd.read_csv(path)
-
-
-@writer(np.ndarray)
-def write_nparray(out, path):
-    path = path + ".npy" if not path.endswith(".npy") else path
-    np.save(path, out)
-    return path
-
-
-@reader(np.ndarray)
-def read_nparray(path):
-    path = path + ".npy" if not path.endswith(".npy") else path
-    return np.load(path)
 
 
 @writer(np.ndarray)

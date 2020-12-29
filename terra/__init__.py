@@ -2,13 +2,13 @@
 from __future__ import annotations
 import os
 from datetime import datetime
-from functools import wraps
 from inspect import getcallargs
 from pip._internal.operations import freeze
 import socket
 import sys
 import platform
 import traceback
+from time import time
 
 import pandas as pd
 import ray
@@ -23,7 +23,7 @@ from terra.notify import (
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
-from terra.database import get_session, Run, TerraDatabase
+import terra.database as tdb
 
 
 class Task:
@@ -40,12 +40,12 @@ class Task:
     def _get_task_dir(task: Task):
         module = task.__module__.split(".")
         if task.__module__ != "__main__":
-            module = module[1:] # TODO: take full path for everything
+            module = module[1:]  # TODO: take full path for everything
 
         task_dir = os.path.join(
             TERRA_CONFIG["storage_dir"],
             "tasks",
-            *module,  
+            *module,
             task.__name__,
         )
         return task_dir
@@ -91,9 +91,7 @@ class Task:
         )
         return load_nested_artifacts(artifacts) if load else artifacts
 
-    def rm_artifacts(
-        self, group_name: str, run_id: int
-    ):
+    def rm_artifacts(self, group_name: str, run_id: int):
         artifacts = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
@@ -102,10 +100,7 @@ class Task:
         rm_nested_artifacts(artifacts)
 
     def get_runs(self):
-        db = TerraDatabase()
-        runs = db.get_runs(fns=self.__name__)
-        df = pd.DataFrame([run.__dict__ for run in runs])
-        return df[["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]]
+        return tdb.get_runs(fns=self.__name__)
 
     def get_log(self, run_id: int = None):
         if run_id is None:
@@ -122,13 +117,15 @@ class Task:
         return self._run(*args, **kwargs)
 
     def remote(self, *args, **kwargs):
-        """ Warning: if you updated the TERRA_CONFIG, these changes will not persist 
+        """Warning: if you updated the TERRA_CONFIG, these changes will not persist
         into child tasks. You should pass `terra_config`=TERRA_CONFIG to `remote`in this
-        case. 
+        case.
         """
+
         @ray.remote
         def fn(task, *args, **kwargs):
             return task._run(*args, **kwargs)
+
         return fn.remote(self, *args, **kwargs)
 
     def _run(self, *args, **kwargs):
@@ -141,15 +138,16 @@ class Task:
         return_run_id = kwargs.pop("return_run_id", False)
 
         # `terra_config` updates the terra config
-        TERRA_CONFIG.update(kwargs.pop("terra_config", {}))
+        if "terra_config" in kwargs:
+            TERRA_CONFIG.update(kwargs.pop("terra_config"))
+            tdb.Session = tdb.get_session()  # neeed to recreate db session
 
         args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
             args_dict.update(args_dict.pop("kwargs"))
 
-        Session = get_session()
-        session = Session()
+        session = tdb.Session()
 
         meta_dict = {
             "notebook": "get_ipython" in globals().keys(),
@@ -162,7 +160,7 @@ class Task:
         }
 
         # add run to terra db
-        run = Run(status="in_progress", **meta_dict)
+        run = tdb.Run(status="in_progress", **meta_dict)
         session.add(run)
         session.commit()
         try:
@@ -173,15 +171,16 @@ class Task:
             ensure_dir_exists(run_dir)
             run.run_dir = run_dir
             git_status = log_git_status(run_dir)
+
             run.git_commit = git_status["commit_hash"]
             run.git_dirty = len(git_status["dirty"]) > 0
             if self.fn.__module__ == "__main__":
                 try:
                     log_fn_source(run_dir=run_dir, fn=self.fn)
                 except OSError:
-                    print('Could not log source code.')
+                    print("Could not log source code.")
 
-            session.commit()
+                session.commit()
 
             # write additional metadata
             meta_dict.update(
@@ -194,37 +193,36 @@ class Task:
                     "terra_config": TERRA_CONFIG,
                 }
             )
-            json_dump(
-                meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir
-            )
+            json_dump(meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir)
 
             # write inputs
-            json_dump(
-                args_dict, os.path.join(run_dir, "inputs.json"), run_dir=run_dir
-            )
+            json_dump(args_dict, os.path.join(run_dir, "inputs.json"), run_dir=run_dir)
 
             init_logging(os.path.join(run_dir, "task.log"))
+
             init_task_notifications(run_id=run.id)
+
             print(f"task: {self.fn.__name__}, run_id={run.id}", flush=True)
 
             # load node inputs
-            args_dict = load_nested_artifacts(args_dict)
+            args_dict = load_nested_artifacts(args_dict, run_id=run.id)
 
             # run function
             out = self.fn(**args_dict)
 
-            # write outputs 
+            # write outputs
             if out is not None:
                 out = json_dump(
                     out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
                 )
 
-            # log success 
+            # log success
             notify_task_completed(run.id)
+
             run.status = "success"
             run.end_time = datetime.now()
             session.commit()
-            
+
         except (Exception, KeyboardInterrupt) as e:
             msg = traceback.format_exc()
             notify_task_error(run.id, msg)
@@ -234,6 +232,7 @@ class Task:
             run.end_time = datetime.now()
             session.commit()
             print(msg)
+            session.close()
             raise e
 
         if return_run_id:

@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, desc
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, desc, ForeignKey
 from sqlalchemy.orm import sessionmaker
 
 from terra.settings import TERRA_CONFIG
@@ -35,6 +35,23 @@ class Run(Base):
         return f"module={self.module}, fn={self.fn}, status={self.status}, run_dir={self.run_dir}"
 
 
+class ArtifactDump(Base):
+    __tablename__ = "artifact_dumps"
+    id = Column(Integer, primary_key=True)
+    creating_run_id = Column(Integer, ForeignKey("runs.id"))
+    path = Column(String)
+    type = Column(String)
+    dump_time = Column(DateTime, default=datetime.utcnow)
+
+
+class ArtifactLoad(Base):
+    __tablename__ = "artifact_loads"
+    id = Column(Integer, primary_key=True)
+    artifact_id = Column(Integer, ForeignKey("artifact_dumps.id"))
+    loading_run_id = Column(Integer, ForeignKey("runs.id"))
+    load_time = Column(DateTime, default=datetime.utcnow)
+
+
 class Ref(Base):
     __tablename__ = "refs"
     id = Column(Integer, primary_key=True)
@@ -42,54 +59,106 @@ class Ref(Base):
     run_dir = Column(String)
 
 
-class TerraDatabase:
-    def __init__(self, create: bool = True):
-        self.Session = get_session(create=create)
+def get_runs(
+    run_ids: Union[int, List[int]] = None,
+    modules: Union[str, List[str]] = None,
+    fns: Union[str, List[str]] = None,
+    statuses: Union[str, List[str]] = None,
+    date_range: Tuple[datetime] = None,
+    df: bool = True,
+) -> List[Run]:
+    session = Session()
+    query = session.query(Run)
 
-    def get_runs(
-        self,
-        run_ids: Union[int, List[int]] = None,
-        modules: Union[str, List[str]] = None,
-        fns: Union[str, List[str]] = None,
-        statuses: Union[str, List[str]] = None,
-        date_range: Tuple[datetime] = None
-    ) -> List[Run]:
-        session = self.Session()
-        query = session.query(Run)
-
-        if run_ids is not None:
-            run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
-            query = query.filter(Run.id.in_(run_ids))
-
-        if modules is not None:
-            modules = [modules] if isinstance(modules, str) else modules
-            query = query.filter(Run.module.in_(modules))
-
-        if fns is not None:
-            fns = [fns] if isinstance(fns, str) else fns
-            query = query.filter(Run.fn.in_(fns))
-
-        if statuses is not None:
-            statuses = [statuses] if isinstance(statuses, str) else statuses
-            query = query.filter(Run.status.in_(statuses))
-        
-        if date_range is not None:
-            query = query.filter(Run.start_time > date_range[0])
-            query = query.filter(Run.start_time < date_range[1])
-
-        query = query.order_by(desc(Run.start_time))
-
-        out = query.all()
-        session.close()
-        return out
-
-    def rm_runs(self, run_ids: Union[int, List[int]]):
+    if run_ids is not None:
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
-        session = self.Session()
-        query = session.query(Run).filter(Run.id.in_(run_ids))
-        query.update({Run.status: "deleted"}, synchronize_session=False)
-        session.commit()
-        session.close()
+        query = query.filter(Run.id.in_(run_ids))
+
+    if modules is not None:
+        modules = [modules] if isinstance(modules, str) else modules
+        query = query.filter(Run.module.in_(modules))
+
+    if fns is not None:
+        fns = [fns] if isinstance(fns, str) else fns
+        query = query.filter(Run.fn.in_(fns))
+
+    if statuses is not None:
+        statuses = [statuses] if isinstance(statuses, str) else statuses
+        query = query.filter(Run.status.in_(statuses))
+
+    if date_range is not None:
+        query = query.filter(Run.start_time > date_range[0])
+        query = query.filter(Run.start_time < date_range[1])
+
+    query = query.order_by(desc(Run.start_time))
+    if df:
+        out = pd.read_sql(query.statement, query.session.bind)
+    else:
+        out = query.all()
+
+    session.close()
+    return out
+
+
+def get_artifacts(
+    run_ids: Union[int, List[int]] = None,
+    date_range: Tuple[datetime] = None,
+    df: bool = True,
+):
+    session = Session()
+    query = session.query(ArtifactDump)
+
+    if run_ids is not None:
+        run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+        query = query.filter(ArtifactDump.creating_run_id.in_(run_ids))
+
+    if date_range is not None:
+        query = query.filter(ArtifactDump.dump_time > date_range[0])
+        query = query.filter(ArtifactDump.dump_time < date_range[1])
+
+    query = query.order_by(desc(ArtifactDump.dump_time))
+    if df:
+        out = pd.read_sql(query.statement, query.session.bind)
+    else:
+        out = query.all()
+
+    session.close()
+    return out
+
+
+def get_artifact_loads(
+    run_ids: Union[int, List[int]] = None,
+    date_range: Tuple[datetime] = None,
+    df: bool = True,
+):
+    session = Session()
+    query = session.query(ArtifactLoad)
+
+    if run_ids is not None:
+        run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+        query = query.filter(ArtifactLoad.loading_run_id.in_(run_ids))
+
+    if date_range is not None:
+        query = query.filter(ArtifactLoad.load_time > date_range[0])
+        query = query.filter(ArtifactLoad.load_time < date_range[1])
+
+    query = query.order_by(desc(ArtifactLoad.load_time))
+    if df:
+        out = pd.read_sql(query.statement, query.session.bind)
+    else:
+        out = query.all()
+
+    session.close()
+    return out
+
+
+def rm_runs(run_ids: Union[int, List[int]]):
+    run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
+    session = Session()
+    query = session.query(Run).filter(Run.id.in_(run_ids))
+    query.update({Run.status: "deleted"}, synchronize_session=False)
+    session.commit()
+    session.close()
 
 
 def get_session(storage_dir: str = None, create: bool = True):
@@ -110,3 +179,6 @@ def get_session(storage_dir: str = None, create: bool = True):
             )
 
     return sessionmaker(bind=engine)
+
+
+Session = get_session()
