@@ -228,7 +228,7 @@ def test_artifact_table(tmpdir):
     fn_a(np.ones(4) * 2)
     fn_c(fn_a.out())
 
-    artifact_df = tdb.get_artifacts()
+    artifact_df = tdb.get_artifact_dumps()
     assert len(artifact_df) == 5
     assert (artifact_df.type == "<class 'numpy.ndarray'>").all()
 
@@ -252,7 +252,7 @@ def test_artifact_load_table(tmpdir):
     fn_a(fn_c.out())
 
     run_df = tdb.get_runs()
-    artifact_df = tdb.get_artifacts()
+    artifact_df = tdb.get_artifact_dumps()
     artifact_load_df = tdb.get_artifact_loads()
     df = artifact_load_df.merge(
         artifact_df[["creating_run_id", "id"]], left_on="artifact_id", right_on="id"

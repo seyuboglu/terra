@@ -42,6 +42,7 @@ class ArtifactDump(Base):
     path = Column(String)
     type = Column(String)
     dump_time = Column(DateTime, default=datetime.utcnow)
+    rm = Column(Boolean, default=False)
 
 
 class ArtifactLoad(Base):
@@ -100,7 +101,7 @@ def get_runs(
     return out
 
 
-def get_artifacts(
+def get_artifact_dumps(
     run_ids: Union[int, List[int]] = None,
     date_range: Tuple[datetime] = None,
     df: bool = True,

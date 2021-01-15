@@ -20,6 +20,7 @@ class Artifact:
 
     def load(self, run_id: int = None):
         if run_id is not None:
+            # if a run_id is supplied, log the load to the loads table
             session = tdb.Session()
             entry = tdb.ArtifactLoad(artifact_id=self.id, loading_run_id=run_id)
             session.add(entry)
@@ -78,6 +79,12 @@ class Artifact:
     def rm(self):
         path = self._get_path()
         os.remove(path)
+
+        # update artifact_dumps table
+        session = tdb.Session()
+        session.query(tdb.ArtifactDump).filter(tdb.ArtifactDump.id == self.id).update({"rm": True})
+
+        session.commit()
 
     def __str__(self):
         return str(self.serialize())
@@ -190,8 +197,7 @@ def generalized_read(path, read_type: type):
 
     else:
         try:
-            new_path = path + ".pkl"
-            with open(new_path, "rb") as f:
+            with open(path, "rb") as f:
                 return pickle.load(f)
         except pickle.UnpicklingError:
             raise ValueError(f"Object type {read_type} not pickleable.")
@@ -210,57 +216,50 @@ def writer(write_type: type):
 
 def generalized_write(out, path):
     if hasattr(out, "__terra_write__"):
-        new_path = out.__terra_write__(path)
+        path = out.__terra_write__(path)
     elif type(out) in writer_registry:
-        new_path = writer_registry[type(out)](out, path)
+        path = writer_registry[type(out)](out, path)
     else:
         try:
-            new_path = path + ".pkl"
-            with open(new_path, "wb") as f:
+            with open(path, "wb") as f:
                 pickle.dump(out, f)
         except pickle.PicklingError:
             raise ValueError(f"Type {type(out)} not pickleable.")
 
-    if new_path is None:
-        return path
-    else:
-        return new_path
+    return path
+
 
 
 @writer(pd.DataFrame)
 def write_dataframe(out, path):
-    path = path + ".csv" if not path.endswith(".csv") else path
     out.to_csv(path, index=False)
     return path
 
 
 @reader(pd.DataFrame)
 def read_dataframe(path):
-    path = path + ".csv" if not path.endswith(".csv") else path
     return pd.read_csv(path)
 
 
 @writer(np.ndarray)
 def write_nparray(out, path):
-    path = path + ".npy" if not path.endswith(".npy") else path
-    np.save(path, out)
+    with open(path, 'wb') as f:
+        np.save(f, out)
     return path
 
 
 @reader(np.ndarray)
 def read_nparray(path):
-    path = path + ".npy" if not path.endswith(".npy") else path
+    print("read", path)
     return np.load(path)
 
 
 @writer(torch.Tensor)
 def write_tensor(out, path):
-    path = path + ".pt" if not path.endswith(".pt") else path
     torch.save(out, path)
     return path
 
 
 @reader(torch.Tensor)
 def read_tensor(path):
-    path = path + ".pt" if not path.endswith(".pt") else path
     return torch.load(path)
