@@ -12,12 +12,17 @@ def ensure_dir_exists(dir):
     args:
         dir     (str)   directory to be created
     """
-    if not os.path.dirname(dir):
-        os.mkdir(dir)
-
-    elif not (os.path.exists(dir)):
+    if os.path.dirname(dir) and os.path.dirname(dir) != "/":
         ensure_dir_exists(os.path.dirname(dir))
-        os.mkdir(dir)
+
+    if not (os.path.exists(dir)):
+        try:
+            os.mkdir(dir)
+        except FileExistsError:
+            # it is possible that another process may have created the directory in the
+            # intervening time between the check above – we want to ignore the error
+            # that is raised in that case  
+            pass 
 
 
 def tqdm(*args, **kwargs):
