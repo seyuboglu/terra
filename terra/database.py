@@ -30,6 +30,7 @@ class Run(Base):
     platform = Column(String)
     git_commit = Column(String)
     git_dirty = Column(Boolean)
+    slurm_job_id = Column(Integer)
 
     def get_summary(self):
         return f"module={self.module}, fn={self.fn}, status={self.status}, run_dir={self.run_dir}"

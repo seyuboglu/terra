@@ -157,6 +157,7 @@ class Task:
             "module": self.fn.__module__,
             "fn": self.fn.__name__,
             "python_version": sys.version,
+            "slurm_job_id": os.environ.get("SLURM_JOB_ID", None),
         }
 
         # add run to terra db

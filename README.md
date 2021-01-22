@@ -30,6 +30,6 @@ Create a `terra_config.json` file for your project:
 
 Then set the `TERRA_CONFIG_PATH` variable in your environment to point to your new `terra_config.json` (you'll need to reactivate the environment): 
 ```
-conda env config vars conda env config vars set TERRA_CONFIG_PATH="path/to/terra_config.json"
+conda env config vars set TERRA_CONFIG_PATH="path/to/terra_config.json"
 conda activate env_name
 ```
