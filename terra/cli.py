@@ -158,10 +158,13 @@ def rm_artifacts(
 @cli.command()
 @click.argument("module", type=str)
 @click.argument("fn", type=str)
-@click.option("-s", "--slurm", is_flag=True, help="Submit job using slurm.")
+@click.option("-s", "--slurm", is_flag=True, help="Submit job using sbatch.")
+@click.option("--srun", is_flag=True, help="Submit job using srun. Must be used with --slurm.")
 @click.option("-e", "--edit", is_flag=True, help="Edit the config prior to running.")
-def run(module: str, fn: str, slurm: bool, edit: bool):
-    print("importing module...")
+def run(module: str, fn: str, slurm: bool, srun: bool, edit: bool):
+    if srun and not slurm:
+        raise ValueError("--srun is only a valid option when using --slurm.")
+
     module_str, fn_str = module, fn
     module = importlib.import_module(module_str)
     fn = getattr(module, fn_str)
@@ -180,11 +183,10 @@ def run(module: str, fn: str, slurm: bool, edit: bool):
             _write_config_skeleton(config_path, module_str, fn_str)
 
         # this can be changed to vi or your preferred editor
-        subprocess.call(["vi", config_path])
-        # return_code = subprocess.call(["code", "--wait", config_path])
-        # if return_code != 0:
-        #    print("Using vim instead.")
-        #    subprocess.call(["vi", config_path])
+        return_code = subprocess.call(["code", "--wait", config_path])
+        if return_code != 0:
+            print("Using vim instead.")
+            subprocess.call(["vi", config_path])
     # load config module
     config = _load_config(config_path)
 
@@ -193,7 +195,7 @@ def run(module: str, fn: str, slurm: bool, edit: bool):
         _write_slurm_sh(
             sh_path=sh_path, slurm_config=config["slurm"], module=module_str, fn=fn_str
         )
-        subprocess.call(["srun", sh_path])
+        subprocess.call(["srun" if srun else "sbatch", sh_path])
 
     else:
         module = importlib.import_module(config["module"])
