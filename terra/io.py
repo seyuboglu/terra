@@ -1,13 +1,12 @@
 import os
 import json
 import uuid
-from typing import Union, Iterable, Mapping
+from typing import Union
 import importlib
 import pickle
 
-import pandas as pd
+from pandas import read_csv, DataFrame
 import numpy as np
-import torch
 
 from terra.utils import ensure_dir_exists
 import terra.database as tdb
@@ -230,15 +229,15 @@ def generalized_write(out, path):
 
 
 
-@writer(pd.DataFrame)
+@writer(DataFrame)
 def write_dataframe(out, path):
     out.to_csv(path, index=False)
     return path
 
 
-@reader(pd.DataFrame)
+@reader(DataFrame)
 def read_dataframe(path):
-    return pd.read_csv(path)
+    return read_csv(path)
 
 
 @writer(np.ndarray)
@@ -253,13 +252,3 @@ def read_nparray(path):
     print("read", path)
     return np.load(path)
 
-
-@writer(torch.Tensor)
-def write_tensor(out, path):
-    torch.save(out, path)
-    return path
-
-
-@reader(torch.Tensor)
-def read_tensor(path):
-    return torch.load(path)

@@ -2,7 +2,6 @@ import os
 import random
 
 import numpy as np
-import torch
 from tqdm import tqdm as _tqdm
 
 
@@ -36,6 +35,7 @@ def set_seed(seed: int, cudnn_deterministic: bool = False):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
 
+    import torch
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = cudnn_deterministic

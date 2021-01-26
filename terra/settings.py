@@ -14,3 +14,4 @@ if "TERRA_CONFIG_PATH" in os.environ:
     with open(config_path) as f:
         config = json.load(f)
     TERRA_CONFIG.update(config)
+

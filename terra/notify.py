@@ -1,13 +1,13 @@
 import socket
 
-from slack import WebClient
-
 from terra.settings import TERRA_CONFIG
 
 run_to_ts = {}
 
 
 def init_task_notifications(run_id: int):
+    from slack import WebClient
+
     return
     if not TERRA_CONFIG["notify"]:
         return

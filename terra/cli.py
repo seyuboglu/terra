@@ -6,16 +6,13 @@ import os
 import subprocess
 import pydoc
 import shutil
-from typing import List
 from datetime import datetime
 
-import pandas as pd
 import click
 from tqdm import tqdm
 
 from terra import Task
 import terra.database as tdb
-from terra.io import json_load, get_nested_artifact_paths
 from terra.utils import ensure_dir_exists
 
 
@@ -48,6 +45,8 @@ def tb(run_ids: str, module: str, fn: str):
 @click.option("--status", default=None)
 @click.option("--run_ids", "-r", type=str, default=None)
 def ls(module: str, fn: str, status: str, run_ids: str):
+    import pandas as pd
+
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
 
@@ -101,6 +100,9 @@ def rm(run_id: int):
 def rm_artifacts(
     module: str, fn: str, start_date: str, end_date: str, hanging_only: bool
 ):
+    import pandas as pd
+    from terra.io import json_load, get_nested_artifact_paths
+
     date_format = "%m-%d-%Y"
     date_range = (
         datetime.strptime(start_date, date_format),
@@ -156,8 +158,9 @@ def rm_artifacts(
 @cli.command()
 @click.argument("module", type=str)
 @click.argument("fn", type=str)
-@click.option("--rerun_id", default=None, type=int)
-def run(module: str, fn: str, rerun_id: int):
+@click.option("-s", "--slurm", is_flag=True, help="Submit job using slurm.")
+@click.option("-e", "--edit", is_flag=True, help="Edit the config prior to running.")
+def run(module: str, fn: str, slurm: bool, edit: bool):
     print("importing module...")
     module_str, fn_str = module, fn
     module = importlib.import_module(module_str)
@@ -171,9 +174,8 @@ def run(module: str, fn: str, rerun_id: int):
 
     task_dir = Task._get_task_dir(fn)
 
-    if rerun_id is None:
-        config_path = os.path.join(task_dir, "config.py")
-
+    config_path = os.path.join(task_dir, "config.py")
+    if edit:
         if not os.path.exists(config_path):
             _write_config_skeleton(config_path, module_str, fn_str)
 
@@ -183,15 +185,19 @@ def run(module: str, fn: str, rerun_id: int):
         # if return_code != 0:
         #    print("Using vim instead.")
         #    subprocess.call(["vi", config_path])
+    # load config module
+    config = _load_config(config_path)
 
-        # load config module
-        config = _load_config(config_path)
+    if slurm:
+        sh_path = os.path.join(task_dir, f"{fn_str}.sh")
+        _write_slurm_sh(
+            sh_path=sh_path, slurm_config=config["slurm"], module=module_str, fn=fn_str
+        )
+        subprocess.call(["srun", sh_path])
+
     else:
-        config = fn.inp(task_dir, run_id=rerun_id)
-        config["kwargs"].pop("run_dir")
-
-    module = importlib.import_module(config["module"])
-    fn(**config["kwargs"])
+        module = importlib.import_module(config["module"])
+        fn(**config["kwargs"])
 
 
 def _load_config(config_path):
@@ -224,6 +230,30 @@ def _write_config_skeleton(config_path, module, fn):
         )
         f.flush()
         f.close()
+
+
+def _write_slurm_sh(sh_path, slurm_config, module, fn):
+    ensure_dir_exists(os.path.split(sh_path)[0])
+    lines = ["#!/bin/bash"]
+    for option, val in slurm_config.items():
+        sep = "=" if option.startswith("--") else " "
+        lines.append(f"#SBATCH {option}{sep}{val}")
+
+    lines.extend(
+        [
+            "source $HOME/.bashrc",
+            "conda activate win",
+            f"cd {os.getcwd()}",
+            f"terra run {module} {fn}",
+        ]
+    )
+    with open(sh_path, "w") as f:
+        f.write("\n".join(lines))
+        f.flush()
+        f.close()
+    
+    # need to provide execute permissions to the user
+    subprocess.call(["chmod", "+rx", sh_path])
 
 
 @cli.command()

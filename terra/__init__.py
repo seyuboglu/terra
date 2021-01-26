@@ -3,20 +3,14 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from inspect import getcallargs
-from pip._internal.operations import freeze
 import socket
 import sys
 import platform
 import traceback
-from time import time
-
-import pandas as pd
-import ray
 
 from terra.git import log_git_status, log_fn_source
 from terra.utils import ensure_dir_exists
 from terra.logging import init_logging
-from terra.io import json_dump, json_load, load_nested_artifacts, rm_nested_artifacts
 from terra.notify import (
     notify_task_completed,
     init_task_notifications,
@@ -59,6 +53,8 @@ class Task:
         return run_id
 
     def inp(self, run_id: int = None, load: bool = False):
+        from terra.io import json_load, load_nested_artifacts
+
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         inps = json_load(
@@ -69,6 +65,8 @@ class Task:
         return load_nested_artifacts(inps) if load else inps
 
     def out(self, run_id: int = None, load: bool = False):
+        from terra.io import json_load, load_nested_artifacts
+        
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         outs = json_load(
@@ -82,6 +80,8 @@ class Task:
     def get_artifacts(
         self, group_name: str = "outputs", run_id=None, load: bool = False
     ):
+        from terra.io import json_load, load_nested_artifacts
+
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         artifacts = json_load(
@@ -92,6 +92,7 @@ class Task:
         return load_nested_artifacts(artifacts) if load else artifacts
 
     def rm_artifacts(self, group_name: str, run_id: int):
+        from terra.io import json_load, rm_nested_artifacts
         artifacts = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
@@ -121,6 +122,7 @@ class Task:
         into child tasks. You should pass `terra_config`=TERRA_CONFIG to `remote`in this
         case.
         """
+        import ray
 
         @ray.remote
         def fn(task, *args, **kwargs):
@@ -129,6 +131,8 @@ class Task:
         return fn.remote(self, *args, **kwargs)
 
     def _run(self, *args, **kwargs):
+        from terra.io import json_dump, load_nested_artifacts
+
         # unpack optional Task modifiers
         # `silence_task` instructs terra not to record the run
         silence_task = kwargs.pop("silence_task", False)
@@ -184,6 +188,7 @@ class Task:
                 session.commit()
 
             # write additional metadata
+            from pip._internal.operations import freeze  # lazy import to reduce startup
             meta_dict.update(
                 {
                     "git": git_status,
@@ -243,6 +248,7 @@ class Task:
 
 
 def init_remote():
+    import ray
     ray.init()
 
 
