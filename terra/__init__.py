@@ -44,7 +44,9 @@ class Task:
         )
         return task_dir
 
-    def run_dir(self, run_id: int):
+    def run_dir(self, run_id: int = None):
+        if run_id is None:
+            return _get_run_dir(self.task_dir, self.last_run_id)
         return _get_run_dir(self.task_dir, run_id)
 
     @property
