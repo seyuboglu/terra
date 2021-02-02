@@ -59,7 +59,7 @@ def ls(module: str, fn: str, status: str, run_ids: str):
     df = pd.DataFrame([run.__dict__ for run in runs])
     pydoc.pipepager(
         df[
-            ["id", "module", "fn", "run_dir", "status", "start_time", "end_time"]
+            ["id", "module", "fn", "run_dir", "status", "slurm_job_id", "start_time", "end_time"]
         ].to_string(index=False),
         "less -R",
     )

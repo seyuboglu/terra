@@ -6,9 +6,10 @@ run_to_ts = {}
 
 
 def init_task_notifications(run_id: int):
-    from slack import WebClient
 
     return
+    from slack import WebClient
+
     if not TERRA_CONFIG["notify"]:
         return
 
