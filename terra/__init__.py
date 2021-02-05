@@ -247,6 +247,14 @@ class Task:
             out = (int(run.id), out) if out is not None else int(run.id)
         session.close()
         return out
+    
+    @staticmethod
+    def dump(artifacts: dict, run_dir: str, group_name:str):
+        from terra.io import json_dump
+        if group_name == "outputs" or group_name == "inputs":
+            raise ValueError('"outputs" and "inputs" are reserved artifact group names')
+        
+        json_dump(artifacts, os.path.join(run_dir, f"{group_name}.json"), run_dir=run_dir)
 
 
 def init_remote():
