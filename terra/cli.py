@@ -183,6 +183,7 @@ def run(module: str, fn: str, slurm: bool, srun: bool, edit: bool):
             _write_config_skeleton(config_path, module_str, fn_str)
 
         # this can be changed to vi or your preferred editor
+        print("Close config editor to continue...")
         return_code = subprocess.call(["code", "--wait", config_path])
         if return_code != 0:
             print("Using vim instead.")
