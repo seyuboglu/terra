@@ -37,10 +37,7 @@ class Task:
             module = module[1:]  # TODO: take full path for everything
 
         task_dir = os.path.join(
-            TERRA_CONFIG["storage_dir"],
-            "tasks",
-            *module,
-            task.__name__,
+            TERRA_CONFIG["storage_dir"], "tasks", *module, task.__name__,
         )
         return task_dir
 
@@ -68,7 +65,7 @@ class Task:
 
     def out(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
-        
+
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         outs = json_load(
@@ -95,6 +92,7 @@ class Task:
 
     def rm_artifacts(self, group_name: str, run_id: int):
         from terra.io import json_load, rm_nested_artifacts
+
         artifacts = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
@@ -119,39 +117,38 @@ class Task:
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
 
-    def remote(self, *args, **kwargs):
-        """Warning: if you updated the TERRA_CONFIG, these changes will not persist
-        into child tasks. You should pass `terra_config`=TERRA_CONFIG to `remote`in this
-        case.
-        """
-        import ray
-
-        @ray.remote
-        def fn(task, *args, **kwargs):
-            return task._run(*args, **kwargs)
-
-        return fn.remote(self, *args, **kwargs)
-
     def _run(self, *args, **kwargs):
         from terra.io import json_dump, load_nested_artifacts
+        
+        args_dict = getcallargs(self.fn, *args, **kwargs)
+
+        if "kwargs" in args_dict:
+            args_dict.update(args_dict.pop("kwargs"))
 
         # unpack optional Task modifiers
-        # `silence_task` instructs terra not to record the run
-        silence_task = kwargs.pop("silence_task", False)
-        if silence_task:
-            return self.fn(*args, **kwargs)
         # `return_run_id` instructs terra to return (run_id, returned_obj)
         return_run_id = kwargs.pop("return_run_id", False)
+
+        # `silence_task` instructs terra not to record the run
+        silence_task = kwargs.pop("silence_task", False)
+
+        # distributed pytorch lightning (ddp) relies on rerunning the entire training
+        # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163).
+        # We do not want terra creating a separate task run for each process, so we
+        # check if we're on node 0 and rank 0, and if not, we silence the task.
+        if ("LOCAL_RANK" in os.environ and "NODE_RANK" in os.environ) and (
+            os.environ["LOCAL_RANK"] != 0 or os.environ["NODE_RANK"] != 0
+        ):
+            silence_task = True
+        
+        if silence_task:
+            args_dict = load_nested_artifacts(args_dict)
+            return self.fn(**args_dict)
 
         # `terra_config` updates the terra config
         if "terra_config" in kwargs:
             TERRA_CONFIG.update(kwargs.pop("terra_config"))
             tdb.Session = tdb.get_session()  # neeed to recreate db session
-
-        args_dict = getcallargs(self.fn, *args, **kwargs)
-
-        if "kwargs" in args_dict:
-            args_dict.update(args_dict.pop("kwargs"))
 
         session = tdb.Session()
 
@@ -191,6 +188,7 @@ class Task:
 
             # write additional metadata
             from pip._internal.operations import freeze  # lazy import to reduce startup
+
             meta_dict.update(
                 {
                     "git": git_status,
@@ -247,19 +245,17 @@ class Task:
             out = (int(run.id), out) if out is not None else int(run.id)
         session.close()
         return out
-    
+
     @staticmethod
-    def dump(artifacts: dict, run_dir: str, group_name:str):
+    def dump(artifacts: dict, run_dir: str, group_name: str):
         from terra.io import json_dump
+
         if group_name == "outputs" or group_name == "inputs":
             raise ValueError('"outputs" and "inputs" are reserved artifact group names')
-        
-        json_dump(artifacts, os.path.join(run_dir, f"{group_name}.json"), run_dir=run_dir)
 
-
-def init_remote():
-    import ray
-    ray.init()
+        json_dump(
+            artifacts, os.path.join(run_dir, f"{group_name}.json"), run_dir=run_dir
+        )
 
 
 def _get_next_run_dir(task_dir):
