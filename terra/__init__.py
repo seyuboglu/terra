@@ -258,8 +258,8 @@ class Task:
             if overwrite:
                 # need to remove the artifacts in the group
                 from terra.io import json_load, rm_nested_artifacts
-                artifacts = json_load(path)
-                rm_nested_artifacts(artifacts)
+                old_artifacts = json_load(path)
+                rm_nested_artifacts(old_artifacts)
                 os.remove(path)
             else:
                 raise ValueError(f"Artifact group '{group_name}' already exists.")

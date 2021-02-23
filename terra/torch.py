@@ -19,7 +19,8 @@ class TerraModule:
 
     @classmethod
     def __terra_read__(cls, path):
-        dct = torch.load(path)
+        # TODO: make it possible to specify a gpu
+        dct = torch.load(path, map_location="cpu")
         model = cls(dct["config"])
         model.load_state_dict(dct["state_dict"])
         return model

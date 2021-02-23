@@ -249,6 +249,5 @@ def write_nparray(out, path):
 
 @reader(np.ndarray)
 def read_nparray(path):
-    print("read", path)
     return np.load(path)
 
