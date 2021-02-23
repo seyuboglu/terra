@@ -247,14 +247,25 @@ class Task:
         return out
 
     @staticmethod
-    def dump(artifacts: dict, run_dir: str, group_name: str):
+    def dump(artifacts: dict, run_dir: str, group_name: str, overwrite: bool=False):
         from terra.io import json_dump
 
         if group_name == "outputs" or group_name == "inputs":
             raise ValueError('"outputs" and "inputs" are reserved artifact group names')
+        
+        path = os.path.join(run_dir, f"{group_name}.json")
+        if os.path.exists(path):
+            if overwrite:
+                # need to remove the artifacts in the group
+                from terra.io import json_load, rm_nested_artifacts
+                artifacts = json_load(path)
+                rm_nested_artifacts(artifacts)
+                os.remove(path)
+            else:
+                raise ValueError(f"Artifact group '{group_name}' already exists.")
 
         json_dump(
-            artifacts, os.path.join(run_dir, f"{group_name}.json"), run_dir=run_dir
+            artifacts, path, run_dir=run_dir
         )
 
 
