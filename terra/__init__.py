@@ -24,22 +24,15 @@ class Task:
     @classmethod
     def make_task(cls, fn: callable) -> Task:
         task = cls()
-        task.task_dir = cls._get_task_dir(fn)
         task.fn = fn
         task.__name__ = fn.__name__
         task.__module__ = fn.__module__
+        task.task_dir = cls._get_task_dir(task)
         return task
 
     @staticmethod
     def _get_task_dir(task: Task):
-        module = task.__module__.split(".")
-        if task.__module__ != "__main__":
-            module = module[1:]  # TODO: take full path for everything
-
-        task_dir = os.path.join(
-            TERRA_CONFIG["storage_dir"], "tasks", *module, task.__name__,
-        )
-        return task_dir
+        return _get_task_dir(task.__module__, task.__name__)
 
     def run_dir(self, run_id: int = None):
         if run_id is None:
@@ -119,7 +112,7 @@ class Task:
 
     def _run(self, *args, **kwargs):
         from terra.io import json_dump, load_nested_artifacts
-        
+
         args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
@@ -140,7 +133,8 @@ class Task:
             os.environ["LOCAL_RANK"] != 0 or os.environ["NODE_RANK"] != 0
         ):
             silence_task = True
-        
+            args_dict["run_dir"] = os.environ["RANK_0_RUN_DIR"]
+
         if silence_task:
             args_dict = load_nested_artifacts(args_dict)
             return self.fn(**args_dict)
@@ -169,6 +163,13 @@ class Task:
         session.commit()
         try:
             run_dir = _get_run_dir(self.task_dir, run.id)
+
+            # distributed pytorch lightning (ddp) requires that the child processes
+            # share the same directories for logging and checkpointing see
+            # https://github.com/PyTorchLightning/pytorch-lightning/issues/5319, so
+            # we have to save the main run_dir as an environment variable
+            os.environ["RANK_0_RUN_DIR"] = run_dir
+
             args_dict["run_dir"] = run_dir
             if os.path.exists(run_dir):
                 raise ValueError(f"Run already exists at {run_dir}.")
@@ -247,36 +248,34 @@ class Task:
         return out
 
     @staticmethod
-    def dump(artifacts: dict, run_dir: str, group_name: str, overwrite: bool=False):
+    def dump(artifacts: dict, run_dir: str, group_name: str, overwrite: bool = False):
         from terra.io import json_dump
 
         if group_name == "outputs" or group_name == "inputs":
             raise ValueError('"outputs" and "inputs" are reserved artifact group names')
-        
+
         path = os.path.join(run_dir, f"{group_name}.json")
         if os.path.exists(path):
             if overwrite:
                 # need to remove the artifacts in the group
                 from terra.io import json_load, rm_nested_artifacts
+
                 old_artifacts = json_load(path)
                 rm_nested_artifacts(old_artifacts)
                 os.remove(path)
             else:
                 raise ValueError(f"Artifact group '{group_name}' already exists.")
 
-        json_dump(
-            artifacts, path, run_dir=run_dir
-        )
+        json_dump(artifacts, path, run_dir=run_dir)
 
 
-def _get_next_run_dir(task_dir):
-    """Get the next available run directory (e.g. "_runs/0", "_runs/1", "_runs/2")
-    in base_dir"""
-    latest_idx = _get_latest_run_id(task_dir)
-    idx = latest_idx + 1 if latest_idx is not None else 0
-    run_dir = _get_run_dir(task_dir, idx)
-    ensure_dir_exists(run_dir)
-    return run_dir
+def _get_task_dir(module_name: str, fn_name: str):
+    module = module_name.split(".")
+    if module[0] != "__main__":
+        module = module[1:]  # TODO: take full path for everything
+
+    task_dir = os.path.join(TERRA_CONFIG["storage_dir"], "tasks", *module, fn_name,)
+    return task_dir
 
 
 def _get_run_dir(task_dir, idx):
