@@ -169,8 +169,17 @@ class TerraDecoder(json.JSONDecoder):
 
     def object_hook(self, dct):
         if "__module__" in dct and "__name__" in dct:
-            module = importlib.import_module(dct["__module__"])
-            return getattr(module, dct["__name__"])
+            try:
+                module = importlib.import_module(dct["__module__"])
+                return getattr(module, dct["__name__"])
+            except ModuleNotFoundError:
+                # sometimes the names of modules change, we still want to be able to
+                # load Task inputs and outputs that reference them 
+                class ExtinctModule:
+                    __name__ = dct["__name__"]
+                    __module__ = dct["__module__"]
+                return ExtinctModule
+            
         if Artifact.is_serialized_artifact(dct):
             return Artifact.deserialize(dct)
         return dct
