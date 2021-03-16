@@ -43,7 +43,7 @@ class Task:
     def last_run_id(self):
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
-
+    
     def inp(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
@@ -82,20 +82,7 @@ class Task:
             )
         )
         return load_nested_artifacts(artifacts) if load else artifacts
-
-    def rm_artifacts(self, group_name: str, run_id: int):
-        from terra.io import json_load, rm_nested_artifacts
-
-        artifacts = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
-            )
-        )
-        rm_nested_artifacts(artifacts)
-
-    def get_runs(self):
-        return tdb.get_runs(fns=self.__name__)
-
+    
     def get_log(self, run_id: int = None):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
@@ -114,10 +101,24 @@ class Task:
 
         artifacts = json_load(
             os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"meta.json"
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json"
             )
         )
         return artifacts
+
+    def rm_artifacts(self, group_name: str, run_id: int):
+        """Chose not to make static as that would be potentially dangerous."""
+        from terra.io import json_load, rm_nested_artifacts
+
+        artifacts = json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            )
+        )
+        rm_nested_artifacts(artifacts)
+
+    def get_runs(self):
+        return tdb.get_runs(fns=self.__name__)
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -280,6 +281,61 @@ class Task:
 
         json_dump(artifacts, path, run_dir=run_dir)
 
+
+def get_run_dir(run_id: int):
+    runs = tdb.get_runs(run_ids=run_id, df=False)
+    if not runs:
+        raise ValueError("Could not find run with `run_id={run_id}`.")
+    return runs[0].run_dir
+
+
+def inp(run_id: int, load: bool = False):
+    from terra.io import json_load, load_nested_artifacts
+    
+    run_dir = get_run_dir(run_id)
+    
+    inps = json_load(os.path.join(run_dir, "inputs.json"))
+    return load_nested_artifacts(inps) if load else inps
+
+
+def out(run_id: int, load: bool = False):
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    outs = json_load(os.path.join(run_dir, "outputs.json"))
+    return load_nested_artifacts(outs) if load else outs
+
+
+def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
+    # TODO: flip the order of `run_id` and groupname in the instance version 
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    artifacts = json_load(os.path.join(run_dir, f"{group_name}.json"))
+    return load_nested_artifacts(artifacts) if load else artifacts
+
+
+def get_log(run_id: int):
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    log_path = os.path.join(run_dir, "task.log")
+
+    with open(log_path, mode="r") as f:
+        return f.read()
+    
+def get_meta(run_id: int = None):
+    from terra.io import json_load
+    run_dir = get_run_dir(run_id)
+
+    meta = json_load(
+        os.path.join(run_dir, "meta.json")
+    )
+    return meta
+    
 
 def _get_task_dir(module_name: str, fn_name: str):
     module = module_name.split(".")
