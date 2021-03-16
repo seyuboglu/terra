@@ -107,6 +107,18 @@ class Task:
         with open(log_path, mode="r") as f:
             return f.read()
 
+    def get_meta(self, run_id: int = None):
+        from terra.io import json_load
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
+
+        artifacts = json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"meta.json"
+            )
+        )
+        return artifacts
+
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
 
