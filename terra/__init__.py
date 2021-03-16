@@ -19,7 +19,6 @@ from terra.notify import (
 from terra.settings import TERRA_CONFIG
 import terra.database as tdb
 
-
 class Task:
     @classmethod
     def make_task(cls, fn: callable) -> Task:
@@ -198,7 +197,7 @@ class Task:
                 except OSError:
                     print("Could not log source code.")
 
-                session.commit()
+            session.commit()
 
             # write additional metadata
             from pip._internal.operations import freeze  # lazy import to reduce startup
@@ -293,7 +292,6 @@ def inp(run_id: int, load: bool = False):
     from terra.io import json_load, load_nested_artifacts
     
     run_dir = get_run_dir(run_id)
-    
     inps = json_load(os.path.join(run_dir, "inputs.json"))
     return load_nested_artifacts(inps) if load else inps
 
@@ -335,7 +333,7 @@ def get_meta(run_id: int = None):
         os.path.join(run_dir, "meta.json")
     )
     return meta
-    
+
 
 def _get_task_dir(module_name: str, fn_name: str):
     module = module_name.split(".")
