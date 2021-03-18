@@ -5,7 +5,7 @@ import json
 import ray
 
 import terra
-from terra import Task, init_remote
+from terra import Task
 import terra.database as tdb
 from terra.settings import TERRA_CONFIG
 
@@ -401,32 +401,32 @@ def test_failure(tmpdir):
         assert run.status == "failure"
 
 
-def test_parallel(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
+# def test_parallel(tmpdir):
+#     TERRA_CONFIG["storage_dir"] = str(tmpdir)
+#     terra.database.Session = (
+#         tdb.get_session()
+#     )  # need to recreate Session with new tmpdir
 
-    init_remote()
+#     init_remote()
 
-    @Task.make_task
-    def fn_a(x, run_dir=None):
-        return x
+#     @Task.make_task
+#     def fn_a(x, run_dir=None):
+#         return x
 
-    obj_refs = []
-    inps = list(range(1, 25))
-    for x in inps:
-        obj_refs.append(fn_a.remote(x, return_run_id=True, terra_config=TERRA_CONFIG))
+#     obj_refs = []
+#     inps = list(range(1, 25))
+#     for x in inps:
+#         obj_refs.append(fn_a.remote(x, return_run_id=True, terra_config=TERRA_CONFIG))
 
-    run_ids, artifacts = zip(*[ray.get(obj_ref) for obj_ref in obj_refs])
+#     run_ids, artifacts = zip(*[ray.get(obj_ref) for obj_ref in obj_refs])
 
-    # check that all inputs (inps) are returned, since (fn_a is identity)
-    assert set(artifacts) == set(inps)
+#     # check that all inputs (inps) are returned, since (fn_a is identity)
+#     assert set(artifacts) == set(inps)
 
-    # check that all inputs (inps) are returned, since (fn_a is identity)
-    assert set([fn_a.out(run_id=run_id) for run_id in run_ids]) == set(inps)
+#     # check that all inputs (inps) are returned, since (fn_a is identity)
+#     assert set([fn_a.out(run_id=run_id) for run_id in run_ids]) == set(inps)
 
-    # check that we have a run_id for each input
-    assert set([run.id for run in tdb.get_runs(df=False)]) == set(
-        range(1, len(inps) + 1)
-    )
+#     # check that we have a run_id for each input
+#     assert set([run.id for run in tdb.get_runs(df=False)]) == set(
+#         range(1, len(inps) + 1)
+#     )

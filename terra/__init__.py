@@ -19,30 +19,19 @@ from terra.notify import (
 from terra.settings import TERRA_CONFIG
 import terra.database as tdb
 
-
 class Task:
     @classmethod
     def make_task(cls, fn: callable) -> Task:
         task = cls()
-        task.task_dir = cls._get_task_dir(fn)
         task.fn = fn
         task.__name__ = fn.__name__
         task.__module__ = fn.__module__
+        task.task_dir = cls._get_task_dir(task)
         return task
 
     @staticmethod
     def _get_task_dir(task: Task):
-        module = task.__module__.split(".")
-        if task.__module__ != "__main__":
-            module = module[1:]  # TODO: take full path for everything
-
-        task_dir = os.path.join(
-            TERRA_CONFIG["storage_dir"],
-            "tasks",
-            *module,
-            task.__name__,
-        )
-        return task_dir
+        return _get_task_dir(task.__module__, task.__name__)
 
     def run_dir(self, run_id: int = None):
         if run_id is None:
@@ -53,7 +42,7 @@ class Task:
     def last_run_id(self):
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
-
+    
     def inp(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
@@ -92,19 +81,7 @@ class Task:
             )
         )
         return load_nested_artifacts(artifacts) if load else artifacts
-
-    def rm_artifacts(self, group_name: str, run_id: int):
-        from terra.io import json_load, rm_nested_artifacts
-        artifacts = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
-            )
-        )
-        rm_nested_artifacts(artifacts)
-
-    def get_runs(self):
-        return tdb.get_runs(fns=self.__name__)
-
+    
     def get_log(self, run_id: int = None):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
@@ -116,42 +93,68 @@ class Task:
         with open(log_path, mode="r") as f:
             return f.read()
 
+    def get_meta(self, run_id: int = None):
+        from terra.io import json_load
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
+
+        artifacts = json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json"
+            )
+        )
+        return artifacts
+
+    def rm_artifacts(self, group_name: str, run_id: int):
+        """Chose not to make static as that would be potentially dangerous."""
+        from terra.io import json_load, rm_nested_artifacts
+
+        artifacts = json_load(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            )
+        )
+        rm_nested_artifacts(artifacts)
+
+    def get_runs(self):
+        return tdb.get_runs(fns=self.__name__)
+
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
-    
-    def ray(self, *args, **kwargs):
-        """Warning: if you updated the TERRA_CONFIG, these changes will not persist
-        into child tasks. You should pass `terra_config`=TERRA_CONFIG to `remote`in this
-        case.
-        """
-        import ray
-
-        @ray.remote
-        def fn(task, *args, **kwargs):
-            return task._run(*args, **kwargs)
-
-        return fn.remote(self, *args, **kwargs)
 
     def _run(self, *args, **kwargs):
         from terra.io import json_dump, load_nested_artifacts
-
-        # unpack optional Task modifiers
-        # `silence_task` instructs terra not to record the run
-        silence_task = kwargs.pop("silence_task", False)
-        if silence_task:
-            return self.fn(*args, **kwargs)
-        # `return_run_id` instructs terra to return (run_id, returned_obj)
-        return_run_id = kwargs.pop("return_run_id", False)
-
-        # `terra_config` updates the terra config
-        if "terra_config" in kwargs:
-            TERRA_CONFIG.update(kwargs.pop("terra_config"))
-            tdb.Session = tdb.get_session()  # neeed to recreate db session
 
         args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
             args_dict.update(args_dict.pop("kwargs"))
+
+        # unpack optional Task modifiers
+        # `return_run_id` instructs terra to return (run_id, returned_obj)
+        return_run_id = kwargs.pop("return_run_id", False)
+
+        # `silence_task` instructs terra not to record the run
+        silence_task = kwargs.pop("silence_task", False)
+
+        # distributed pytorch lightning (ddp) relies on rerunning the entire training
+        # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163).
+        # We do not want terra creating a separate task run for each process, so we
+        # check if we're on node 0 and rank 0, and if not, we silence the task.
+        if ("LOCAL_RANK" in os.environ and "NODE_RANK" in os.environ) and (
+            os.environ["LOCAL_RANK"] != 0 or os.environ["NODE_RANK"] != 0
+        ):
+            silence_task = True
+            args_dict["run_dir"] = os.environ["RANK_0_RUN_DIR"]
+
+        if silence_task:
+            args_dict = load_nested_artifacts(args_dict)
+            return self.fn(**args_dict)
+
+        # `terra_config` updates the terra config
+        if "terra_config" in kwargs:
+            TERRA_CONFIG.update(kwargs.pop("terra_config"))
+            tdb.Session = tdb.get_session()  # neeed to recreate db session
 
         session = tdb.Session()
 
@@ -172,6 +175,13 @@ class Task:
         session.commit()
         try:
             run_dir = _get_run_dir(self.task_dir, run.id)
+
+            # distributed pytorch lightning (ddp) requires that the child processes
+            # share the same directories for logging and checkpointing see
+            # https://github.com/PyTorchLightning/pytorch-lightning/issues/5319, so
+            # we have to save the main run_dir as an environment variable
+            os.environ["RANK_0_RUN_DIR"] = run_dir
+
             args_dict["run_dir"] = run_dir
             if os.path.exists(run_dir):
                 raise ValueError(f"Run already exists at {run_dir}.")
@@ -187,10 +197,11 @@ class Task:
                 except OSError:
                     print("Could not log source code.")
 
-                session.commit()
+            session.commit()
 
             # write additional metadata
             from pip._internal.operations import freeze  # lazy import to reduce startup
+
             meta_dict.update(
                 {
                     "git": git_status,
@@ -247,29 +258,90 @@ class Task:
             out = (int(run.id), out) if out is not None else int(run.id)
         session.close()
         return out
-    
+
     @staticmethod
-    def dump(artifacts: dict, run_dir: str, group_name:str):
+    def dump(artifacts: dict, run_dir: str, group_name: str, overwrite: bool = False):
         from terra.io import json_dump
+
         if group_name == "outputs" or group_name == "inputs":
             raise ValueError('"outputs" and "inputs" are reserved artifact group names')
-        
-        json_dump(artifacts, os.path.join(run_dir, f"{group_name}.json"), run_dir=run_dir)
+
+        path = os.path.join(run_dir, f"{group_name}.json")
+        if os.path.exists(path):
+            if overwrite:
+                # need to remove the artifacts in the group
+                from terra.io import json_load, rm_nested_artifacts
+
+                old_artifacts = json_load(path)
+                rm_nested_artifacts(old_artifacts)
+                os.remove(path)
+            else:
+                raise ValueError(f"Artifact group '{group_name}' already exists.")
+
+        json_dump(artifacts, path, run_dir=run_dir)
 
 
-def init_remote():
-    import ray
-    ray.init()
+def get_run_dir(run_id: int):
+    runs = tdb.get_runs(run_ids=run_id, df=False)
+    if not runs:
+        raise ValueError("Could not find run with `run_id={run_id}`.")
+    return runs[0].run_dir
 
 
-def _get_next_run_dir(task_dir):
-    """Get the next available run directory (e.g. "_runs/0", "_runs/1", "_runs/2")
-    in base_dir"""
-    latest_idx = _get_latest_run_id(task_dir)
-    idx = latest_idx + 1 if latest_idx is not None else 0
-    run_dir = _get_run_dir(task_dir, idx)
-    ensure_dir_exists(run_dir)
-    return run_dir
+def inp(run_id: int, load: bool = False):
+    from terra.io import json_load, load_nested_artifacts
+    
+    run_dir = get_run_dir(run_id)
+    inps = json_load(os.path.join(run_dir, "inputs.json"))
+    return load_nested_artifacts(inps) if load else inps
+
+
+def out(run_id: int, load: bool = False):
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    outs = json_load(os.path.join(run_dir, "outputs.json"))
+    return load_nested_artifacts(outs) if load else outs
+
+
+def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
+    # TODO: flip the order of `run_id` and groupname in the instance version 
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    artifacts = json_load(os.path.join(run_dir, f"{group_name}.json"))
+    return load_nested_artifacts(artifacts) if load else artifacts
+
+
+def get_log(run_id: int):
+    from terra.io import json_load, load_nested_artifacts
+
+    run_dir = get_run_dir(run_id)
+    
+    log_path = os.path.join(run_dir, "task.log")
+
+    with open(log_path, mode="r") as f:
+        return f.read()
+    
+def get_meta(run_id: int = None):
+    from terra.io import json_load
+    run_dir = get_run_dir(run_id)
+
+    meta = json_load(
+        os.path.join(run_dir, "meta.json")
+    )
+    return meta
+
+
+def _get_task_dir(module_name: str, fn_name: str):
+    module = module_name.split(".")
+    if module[0] != "__main__":
+        module = module[1:]  # TODO: take full path for everything
+
+    task_dir = os.path.join(TERRA_CONFIG["storage_dir"], "tasks", *module, fn_name,)
+    return task_dir
 
 
 def _get_run_dir(task_dir, idx):

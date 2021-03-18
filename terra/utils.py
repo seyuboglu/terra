@@ -1,7 +1,6 @@
 import os
 import random
 
-import numpy as np
 from tqdm import tqdm as _tqdm
 
 
@@ -32,6 +31,7 @@ def tqdm(*args, **kwargs):
 
 def set_seed(seed: int, cudnn_deterministic: bool = False):
     """Set seed for packages that could introduce non-determinism to a task."""
+    
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
 
@@ -40,4 +40,5 @@ def set_seed(seed: int, cudnn_deterministic: bool = False):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = cudnn_deterministic
 
+    import numpy as np
     np.random.seed(seed)

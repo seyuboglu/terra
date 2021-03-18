@@ -11,7 +11,7 @@ from datetime import datetime
 import click
 from tqdm import tqdm
 
-from terra import Task
+from terra import Task, _get_task_dir
 import terra.database as tdb
 from terra.utils import ensure_dir_exists
 
@@ -34,9 +34,7 @@ def tb(run_ids: str, module: str, fn: str):
         ]
         subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
     elif fn is not None and module is not None:
-        module = importlib.import_module(module)
-        fn = getattr(module, fn)
-        subprocess.call(["tensorboard", "--logdir", Task._get_task_dir(fn)])
+        subprocess.call(["tensorboard", "--logdir", _get_task_dir(module, fn)])
 
 
 @cli.command()
@@ -263,22 +261,11 @@ def _write_slurm_sh(sh_path, slurm_config, module, fn):
 @click.argument("module", type=str)
 @click.argument("fn", type=str)
 def config(module: str, fn: str):
-    print("importing module...")
-    module_str, fn_str = module, fn
-    module = importlib.import_module(module_str)
-    fn = getattr(module, fn_str)
-
-    if not isinstance(fn, Task):
-        raise ValueError(
-            f"The function {fn} is not a task. "
-            "Use the `Task.make_task` decorator to turn it into a task."
-        )
-
-    task_dir = Task._get_task_dir(fn)
+    task_dir = _get_task_dir(module_name=module, fn_name=fn)
 
     config_path = os.path.join(task_dir, "config.py")
 
     if not os.path.exists(config_path):
-        _write_config_skeleton(config_path, module_str, fn_str)
+        _write_config_skeleton(config_path, module, fn)
 
     print(f"config path: {config_path}")
