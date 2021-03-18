@@ -68,7 +68,7 @@ class Task:
 
     def out(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
-        
+
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         outs = json_load(
@@ -118,8 +118,8 @@ class Task:
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
-
-    def remote(self, *args, **kwargs):
+    
+    def ray(self, *args, **kwargs):
         """Warning: if you updated the TERRA_CONFIG, these changes will not persist
         into child tasks. You should pass `terra_config`=TERRA_CONFIG to `remote`in this
         case.
