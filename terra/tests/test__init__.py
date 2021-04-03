@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 import json
 
-import ray
-
 import terra
 from terra import Task
 import terra.database as tdb

@@ -29,6 +29,5 @@ setuptools.setup(
         "click",
         "tqdm",
         "torch",
-        "ray"
     ],
 )
