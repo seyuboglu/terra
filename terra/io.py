@@ -258,5 +258,5 @@ def write_nparray(out, path):
 
 @reader(np.ndarray)
 def read_nparray(path):
-    return np.load(path)
+    return np.load(path, allow_pickle=True)
 
