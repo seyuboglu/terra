@@ -2,7 +2,7 @@
 A Python package that transforms free-form research workflows into reproducible pipelines. 
 
 ## 🚀 Getting started
-Using `terra` to track your research workflows begins with a simple decorator, `Task.make_task`! For example's sake, let's assume we're trying to train a model to classify plants of the genus _Iris_ (see [Iris dataset](https://archive.ics.uci.edu/ml/datasets/iris)). As a first step, let's write a function that downloads the dataset for this project. We'll turn it into a `terra.Task` using a decorator:
+Using `terra` to track your research workflows begins with a simple decorator, `Task.make_task`! For example's sake, let's assume we're trying to train a model to classify plants of the genus _Iris_ (see [Iris dataset](https://archive.ics.uci.edu/ml/datasets/iris)). As a first step, let's write a function that downloads the dataset for this project. We'll turn it into a `terra.Task` using the decorator:
 ```python
 from terra import Task
 import pandas as pd 
@@ -17,7 +17,7 @@ data_df = download_iris("https://raw.github...")
 ```
 A couple things to notice: 
 1. __`run_id`__ – When we call `download_iris`, the run is recorded in the `terra` database and assigned a unique `run_id`. At any time in the future, we can use that `run_id` to fetch info about the run: `terra.inp(run_id=1)`, `terra.get_meta(run_id=1)`, `terra.get_log(run_id=1)`, `terra.get_run_dir(run_id=1)`.  
-2. __`Artifact`__ – Objects returned from a `Task` are serialized and written to disk. If you inspect `data_df`, you'll notice that it's not actually a Pandas DataFrame but rather a `terra.io.Artifact`. In `terra`, an `Artifact` is simply a pointer to an object that was created by a task run and written to disk. To access the underlying DataFrame, we can just call `data_df.load()`. Later on, in a different python process or notebook, we can access this artifact same artifact by simply calling `terra.out(run_id=1)`.    
+2. __`Artifact`__ – Objects returned from a `Task` are serialized and written to disk. If you inspect `data_df`, you'll notice that it's not actually a Pandas DataFrame but rather a `terra.io.Artifact`. In `terra`, an `Artifact` is simply a pointer to an object that was created by a task run and written to disk. To access the underlying DataFrame, we can just call `data_df.load()`. Later on, in a different python process or notebook, we can access this same artifact by simply calling `terra.out(run_id=1)`.    
 
 Let's create a second `Task` for the next step of our project: splitting the dataset into training and test splits:
 ```python
