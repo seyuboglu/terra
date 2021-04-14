@@ -132,10 +132,10 @@ class Task:
 
         # unpack optional Task modifiers
         # `return_run_id` instructs terra to return (run_id, returned_obj)
-        return_run_id = kwargs.pop("return_run_id", False)
+        return_run_id = args_dict.pop("return_run_id", False)
 
         # `silence_task` instructs terra not to record the run
-        silence_task = kwargs.pop("silence_task", False)
+        silence_task = args_dict.pop("silence_task", False)
 
         # distributed pytorch lightning (ddp) relies on rerunning the entire training
         # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163).
@@ -152,8 +152,8 @@ class Task:
             return self.fn(**args_dict)
 
         # `terra_config` updates the terra config
-        if "terra_config" in kwargs:
-            TERRA_CONFIG.update(kwargs.pop("terra_config"))
+        if "terra_config" in args_dict:
+            TERRA_CONFIG.update(args_dict.pop("terra_config"))
             tdb.Session = tdb.get_session()  # neeed to recreate db session
 
         session = tdb.Session()
