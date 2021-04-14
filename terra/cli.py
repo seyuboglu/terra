@@ -9,7 +9,6 @@ import shutil
 from datetime import datetime
 
 import click
-from tqdm import tqdm
 
 from terra import Task, _get_task_dir
 import terra.database as tdb
@@ -126,7 +125,7 @@ def rm_artifacts(
     ):
         print("aborted")
         return
-    for run_dir in tqdm(df.run_dir):
+    for run_dir in df.run_dir:
         artifacts_dir = os.path.join(run_dir, "artifacts")
         if os.path.isdir(artifacts_dir):
             if hanging_only:

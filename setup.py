@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="terra",  # Replace with your own username
+    name="terra",
     version="0.0.1",
     author="Sabri Eyuboglu",
     author_email="eyuboglu@stanford.edu",
-    description="A package for running computational experiments",
+    description="A Python package that transforms free-form research workflows into reproducible pipelines.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/seyuboglu/terra",
@@ -20,14 +20,14 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": ["terra=terra.cli:cli"]},
     python_requires=">=3.8",
+    # TODO(sabri): test these version lower bounds 
     install_requires=[
-        "pandas",
-        "numpy",
-        "slackclient",
-        "pytest",
-        "sqlalchemy",
-        "click",
-        "tqdm",
-        "torch",
+        "pandas>=1.1.0",
+        "numpy>=1.0",
+        "slackclient>=2.0",
+        "pytest>=6.0",
+        "sqlalchemy>=2.0",
+        "click>=7.0.0",
+        "torch>=1.0.0",
     ],
 )

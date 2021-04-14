@@ -1,8 +1,6 @@
 import os
 import random
 
-from tqdm import tqdm as _tqdm
-
 
 def ensure_dir_exists(dir):
     """
@@ -21,12 +19,6 @@ def ensure_dir_exists(dir):
             # intervening time between the check above – we want to ignore the error
             # that is raised in that case  
             pass 
-
-
-def tqdm(*args, **kwargs):
-    """ Wrapper around tqdm that doesn't skip lines in Jupyter Notebooks."""
-    getattr(_tqdm, "_instances", {}).clear()
-    return _tqdm(*args, **kwargs)
 
 
 def set_seed(seed: int, cudnn_deterministic: bool = False):
