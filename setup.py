@@ -26,7 +26,7 @@ setuptools.setup(
         "numpy>=1.0",
         "slackclient>=2.0",
         "pytest>=6.0",
-        "sqlalchemy>=2.0",
+        "sqlalchemy>=1.3",
         "click>=7.0.0",
         "torch>=1.0.0",
     ],
