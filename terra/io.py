@@ -204,6 +204,9 @@ def generalized_read(path, read_type: type):
         return reader_registry[read_type](path)
 
     else:
+        from mosaic import DataPanel
+        if read_type == DataPanel:
+            return DataPanel.read(path)
         try:
             with open(path, "rb") as f:
                 return pickle.load(f)
@@ -228,6 +231,9 @@ def generalized_write(out, path):
     elif type(out) in writer_registry:
         path = writer_registry[type(out)](out, path)
     else:
+        from mosaic import DataPanel
+        if isinstance(out, DataPanel):
+            return out.write(path)
         try:
             with open(path, "wb") as f:
                 pickle.dump(out, f)
@@ -259,4 +265,5 @@ def write_nparray(out, path):
 @reader(np.ndarray)
 def read_nparray(path):
     return np.load(path, allow_pickle=True)
+
 
