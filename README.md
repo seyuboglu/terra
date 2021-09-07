@@ -2,12 +2,12 @@
 A Python package that transforms free-form research workflows into reproducible pipelines. 
 
 ## 🚀 Getting started
-Using `terra` to track your research workflows begins with a simple decorator, `Task.make_task`! For example's sake, let's assume we're trying to train a model to classify plants of the genus _Iris_ (see [Iris dataset](https://archive.ics.uci.edu/ml/datasets/iris)). As a first step, let's write a function that downloads the dataset for this project. We'll turn it into a `terra.Task` using the decorator:
+Using `terra` to track your research workflows begins with a simple decorator, `Task`! For example's sake, let's assume we're trying to train a model to classify plants of the genus _Iris_ (see [Iris dataset](https://archive.ics.uci.edu/ml/datasets/iris)). As a first step, let's write a function that downloads the dataset for this project. We'll turn it into a `terra.Task` using the decorator:
 ```python
 from terra import Task
 import pandas as pd 
 
-@Task.make_task
+@Task
 def download_iris(url: str, run_dir: str = None):
     return pd.read_csv(url)
 
@@ -21,7 +21,7 @@ A couple things to notice:
 
 Let's create a second `Task` for the next step of our project: splitting the dataset into training and test splits:
 ```python
-@Task.make_task
+@Task
 def split_data(df: pd.DataFrame, train_frac: float=0.8, run_dir: str = None):
     mask = np.random.rand(len(df)) < train_frac
     return {"train": mask, "test": ~mask}

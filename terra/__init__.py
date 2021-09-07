@@ -1,12 +1,14 @@
 """ The `task` module provides a framework for running reproducible analyses."""
 from __future__ import annotations
 import os
+from functools import update_wrapper
 from datetime import datetime
 from inspect import getcallargs
 import socket
 import sys
 import platform
 import traceback
+from typing import Collection
 
 from terra.git import log_git_status, log_fn_source
 from terra.utils import ensure_dir_exists
@@ -19,15 +21,21 @@ from terra.notify import (
 from terra.settings import TERRA_CONFIG
 import terra.database as tdb
 
+
 class Task:
+    def __init__(self, fn: callable, skip_args: Collection[str] = None):
+        self.fn = fn
+        self.__name__ = fn.__name__
+        self.__module__ = fn.__module__
+        self.task_dir = self._get_task_dir(self)
+        self.skip_args = skip_args
+
     @classmethod
-    def make_task(cls, fn: callable) -> Task:
-        task = cls()
-        task.fn = fn
-        task.__name__ = fn.__name__
-        task.__module__ = fn.__module__
-        task.task_dir = cls._get_task_dir(task)
-        return task
+    def make(cls, skip_args: Collection[str]) -> Task:
+        def _make(fn: callable) -> Task:
+            return cls(fn=fn, skip_args=skip_args)
+
+        return _make
 
     @staticmethod
     def _get_task_dir(task: Task):
@@ -42,7 +50,7 @@ class Task:
     def last_run_id(self):
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
-    
+
     def inp(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
@@ -68,9 +76,7 @@ class Task:
 
         return load_nested_artifacts(outs) if load else outs
 
-    def get_artifacts(
-        self, group_name: str = "outputs", run_id=None, load: bool = False
-    ):
+    def get(self, run_id: int = None, group_name: str = "outputs", load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
         if run_id is None:
@@ -81,7 +87,12 @@ class Task:
             )
         )
         return load_nested_artifacts(artifacts) if load else artifacts
-    
+
+    def get_artifacts(
+        self, run_id: int = None, group_name: str = "outputs", load: bool = False
+    ):
+        return self.get(group_name=group_name, run_id=run_id, load=load)
+
     def get_log(self, run_id: int = None):
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
@@ -95,13 +106,12 @@ class Task:
 
     def get_meta(self, run_id: int = None):
         from terra.io import json_load
+
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
 
         artifacts = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json"
-            )
+            os.path.join(_get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json")
         )
         return artifacts
 
@@ -181,8 +191,10 @@ class Task:
             # https://github.com/PyTorchLightning/pytorch-lightning/issues/5319, so
             # we have to save the main run_dir as an environment variable
             os.environ["RANK_0_RUN_DIR"] = run_dir
-
-            args_dict["run_dir"] = run_dir
+            
+            if "run_dir" in args_dict:
+                args_dict["run_dir"] = run_dir
+                
             if os.path.exists(run_dir):
                 raise ValueError(f"Run already exists at {run_dir}.")
             ensure_dir_exists(run_dir)
@@ -215,7 +227,17 @@ class Task:
             json_dump(meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir)
 
             # write inputs
-            json_dump(args_dict, os.path.join(run_dir, "inputs.json"), run_dir=run_dir)
+            args_to_dump = (
+                args_dict
+                if self.skip_args is None
+                else {
+                    k: ("__skipped__" if k in self.skip_args else v)
+                    for k, v in args_dict.items()
+                }
+            )
+            json_dump(
+                args_to_dump, os.path.join(run_dir, "inputs.json"), run_dir=run_dir
+            )
 
             init_logging(os.path.join(run_dir, "task.log"))
 
@@ -290,7 +312,7 @@ def get_run_dir(run_id: int):
 
 def inp(run_id: int, load: bool = False):
     from terra.io import json_load, load_nested_artifacts
-    
+
     run_dir = get_run_dir(run_id)
     inps = json_load(os.path.join(run_dir, "inputs.json"))
     return load_nested_artifacts(inps) if load else inps
@@ -300,38 +322,42 @@ def out(run_id: int, load: bool = False):
     from terra.io import json_load, load_nested_artifacts
 
     run_dir = get_run_dir(run_id)
-    
+
     outs = json_load(os.path.join(run_dir, "outputs.json"))
     return load_nested_artifacts(outs) if load else outs
 
 
-def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
-    # TODO: flip the order of `run_id` and groupname in the instance version 
+def get(run_id: int, group_name: str = "outputs", load: bool = False):
+    # TODO: flip the order of `run_id` and groupname in the instance version
     from terra.io import json_load, load_nested_artifacts
 
     run_dir = get_run_dir(run_id)
-    
+
     artifacts = json_load(os.path.join(run_dir, f"{group_name}.json"))
     return load_nested_artifacts(artifacts) if load else artifacts
+
+
+def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
+    return get(group_name=group_name, run_id=run_id, load=load)
 
 
 def get_log(run_id: int):
     from terra.io import json_load, load_nested_artifacts
 
     run_dir = get_run_dir(run_id)
-    
+
     log_path = os.path.join(run_dir, "task.log")
 
     with open(log_path, mode="r") as f:
         return f.read()
-    
+
+
 def get_meta(run_id: int = None):
     from terra.io import json_load
+
     run_dir = get_run_dir(run_id)
 
-    meta = json_load(
-        os.path.join(run_dir, "meta.json")
-    )
+    meta = json_load(os.path.join(run_dir, "meta.json"))
     return meta
 
 
@@ -340,7 +366,12 @@ def _get_task_dir(module_name: str, fn_name: str):
     if module[0] != "__main__":
         module = module[1:]  # TODO: take full path for everything
 
-    task_dir = os.path.join(TERRA_CONFIG["storage_dir"], "tasks", *module, fn_name,)
+    task_dir = os.path.join(
+        TERRA_CONFIG["storage_dir"],
+        "tasks",
+        *module,
+        fn_name,
+    )
     return task_dir
 
 

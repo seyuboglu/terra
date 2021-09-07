@@ -7,6 +7,7 @@ import pickle
 
 from pandas import read_csv, DataFrame
 import numpy as np
+import meerkat as mk
 
 from terra.utils import ensure_dir_exists
 import terra.database as tdb
@@ -97,7 +98,7 @@ def load_nested_artifacts(obj: Union[list, dict], run_id: int = None):
     if isinstance(obj, list):
         return [load_nested_artifacts(v, run_id=run_id) for v in obj]
     elif isinstance(obj, tuple):
-        return (load_nested_artifacts(v, run_id=run_id) for v in obj)
+        return tuple(load_nested_artifacts(v, run_id=run_id) for v in obj)
     elif isinstance(obj, dict):
         return {k: load_nested_artifacts(v, run_id=run_id) for k, v in obj.items()}
     elif isinstance(obj, Artifact):
@@ -204,9 +205,6 @@ def generalized_read(path, read_type: type):
         return reader_registry[read_type](path)
 
     else:
-        from mosaic import DataPanel
-        if read_type == DataPanel:
-            return DataPanel.read(path)
         try:
             with open(path, "rb") as f:
                 return pickle.load(f)
@@ -231,9 +229,6 @@ def generalized_write(out, path):
     elif type(out) in writer_registry:
         path = writer_registry[type(out)](out, path)
     else:
-        from mosaic import DataPanel
-        if isinstance(out, DataPanel):
-            return out.write(path)
         try:
             with open(path, "wb") as f:
                 pickle.dump(out, f)
@@ -267,3 +262,13 @@ def read_nparray(path):
     return np.load(path, allow_pickle=True)
 
 
+@writer(mk.DataPanel)
+def write_datapanel(out, path):
+    out.write(path)
+    return path
+
+
+@reader(mk.DataPanel)
+def read_datapanel(path):
+    return mk.DataPanel.read(path)
+ 

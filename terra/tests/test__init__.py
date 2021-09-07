@@ -16,7 +16,7 @@ def test_make_task(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(run_dir=None):
         return None
 
@@ -29,15 +29,15 @@ def test_np_pipeline(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return np.ones(4) * (x ** 2)
 
-    @Task.make_task
+    @Task
     def fn_c(x, y, run_dir=None):
         return x + y
 
@@ -54,21 +54,21 @@ def test_pandas_pipeline(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(1, x + 1)])
         return df
 
     fn_a(10)
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         df = pd.DataFrame([{"a": idx, "c": idx ** 3} for idx in range(1, x + 1)])
         return df
 
     fn_b(10)
 
-    @Task.make_task
+    @Task
     def fn_c(x, y, run_dir=None):
         return x.merge(right=y, on="a")
 
@@ -85,15 +85,15 @@ def test_scalar_pipeline(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return x ** 2
 
-    @Task.make_task
+    @Task
     def fn_c(x, y, run_dir=None):
         return x * y
 
@@ -110,11 +110,11 @@ def test_nested_np_pipeline(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
-    @Task.make_task
+    @Task
     def fn_c(x, run_dir=None):
         return x["a"] + x["b"][0] + x["b"][0]
 
@@ -130,14 +130,14 @@ def test_out_scalar(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return x ** 2
 
     fn_b(4)
     assert fn_b.out() == 16
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return x ** 2, x ** 3
 
@@ -153,14 +153,14 @@ def test_out_np(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
 
     fn_a(3)
     assert np.all(fn_a.out().load() == np.full(4, 3))
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x, np.ones(4) / x
 
@@ -175,7 +175,7 @@ def test_out_pandas(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(x)])
         return df
@@ -191,11 +191,11 @@ def test_run_table(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
-    @Task.make_task
+    @Task
     def fn_c(x, run_dir=None):
         return x["a"] + x["b"][0] + x["b"][0]
 
@@ -214,11 +214,11 @@ def test_artifact_table(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
-    @Task.make_task
+    @Task
     def fn_c(x, run_dir=None):
         return x["a"] + x["b"][0] + x["b"][0]
 
@@ -236,11 +236,11 @@ def test_artifact_load_table(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
-    @Task.make_task
+    @Task
     def fn_c(x, run_dir=None):
         return x["a"] + x["b"][0] + x["b"][0]
 
@@ -284,11 +284,11 @@ def test_out_custom(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return CustomClass(attr=x)
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return x.attr * 2
 
@@ -304,7 +304,7 @@ def test_inp_scalar(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_b(x, run_dir=None):
         return x ** 2
 
@@ -320,7 +320,7 @@ def test_inp_np(tmpdir):
 
     x = np.ones(4)
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return x
 
@@ -336,7 +336,7 @@ def test_inp_pandas(tmpdir):
 
     df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(10)])
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return df
 
@@ -350,7 +350,7 @@ def test_inp_custom(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(x, run_dir=None):
         return x
 
@@ -369,7 +369,7 @@ def test_kwargs_custom(tmpdir):
     def fn_b(x, y, z):
         return x * y + z
 
-    @Task.make_task
+    @Task
     def fn_a(run_dir=None, **kwargs):
         return fn_b(**kwargs)
 
@@ -388,7 +388,7 @@ def test_failure(tmpdir):
         tdb.get_session()
     )  # need to recreate Session with new tmpdir
 
-    @Task.make_task
+    @Task
     def fn_a(run_dir=None):
         raise ValueError("error")
 
@@ -407,7 +407,7 @@ def test_failure(tmpdir):
 
 #     init_remote()
 
-#     @Task.make_task
+#     @Task
 #     def fn_a(x, run_dir=None):
 #         return x
 

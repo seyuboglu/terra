@@ -18,7 +18,7 @@ def test_logging(tmpdir):
     stdout_str = "qwertyuiop"
     stderr_str = "asdfghjkl"
 
-    @Task.make_task
+    @Task
     def fn_a(run_dir=None):
         print(stdout_str)
         raise ValueError(stderr_str)

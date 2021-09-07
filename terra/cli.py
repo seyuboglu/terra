@@ -169,7 +169,7 @@ def run(module: str, fn: str, slurm: bool, srun: bool, edit: bool):
     if not isinstance(fn, Task):
         raise ValueError(
             f"The function {fn} is not a task. "
-            "Use the `Task.make_task` decorator to turn it into a task."
+            "Use the `Task` decorator to turn it into a task."
         )
 
     task_dir = Task._get_task_dir(fn)

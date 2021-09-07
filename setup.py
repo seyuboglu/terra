@@ -29,5 +29,6 @@ setuptools.setup(
         "sqlalchemy>=1.3",
         "click>=7.0.0",
         "torch>=1.0.0",
+        "meerkat-ml"
     ],
 )
