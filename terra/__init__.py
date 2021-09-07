@@ -23,17 +23,27 @@ import terra.database as tdb
 
 
 class Task:
-    def __init__(self, fn: callable, skip_args: Collection[str] = None):
+    def __init__(
+        self,
+        fn: callable,
+        no_dump_args: Collection[str] = None,
+        no_load_args: Collection[str] = None,
+    ):
         self.fn = fn
         self.__name__ = fn.__name__
         self.__module__ = fn.__module__
         self.task_dir = self._get_task_dir(self)
-        self.skip_args = skip_args
+        self.no_dump_args = no_dump_args
+        self.no_load_args = no_load_args
 
     @classmethod
-    def make(cls, skip_args: Collection[str]) -> Task:
+    def make(
+        cls,
+        no_dump_args: Collection[str] = None,
+        no_load_args: Collection[str] = None,
+    ) -> callable:
         def _make(fn: callable) -> Task:
-            return cls(fn=fn, skip_args=skip_args)
+            return cls(fn=fn, no_dump_args=no_dump_args, no_load_args=no_load_args)
 
         return _make
 
@@ -191,10 +201,10 @@ class Task:
             # https://github.com/PyTorchLightning/pytorch-lightning/issues/5319, so
             # we have to save the main run_dir as an environment variable
             os.environ["RANK_0_RUN_DIR"] = run_dir
-            
+
             if "run_dir" in args_dict:
                 args_dict["run_dir"] = run_dir
-                
+
             if os.path.exists(run_dir):
                 raise ValueError(f"Run already exists at {run_dir}.")
             ensure_dir_exists(run_dir)
@@ -229,9 +239,9 @@ class Task:
             # write inputs
             args_to_dump = (
                 args_dict
-                if self.skip_args is None
+                if self.no_dump_args is None
                 else {
-                    k: ("__skipped__" if k in self.skip_args else v)
+                    k: ("__skipped__" if k in self.no_dump_args else v)
                     for k, v in args_dict.items()
                 }
             )
@@ -246,7 +256,20 @@ class Task:
             print(f"task: {self.fn.__name__}, run_id={run.id}", flush=True)
 
             # load node inputs
-            args_dict = load_nested_artifacts(args_dict, run_id=run.id)
+            if self.no_load_args is not None:
+                args_dict = {
+                    **{k: args_dict[k] for k in self.no_load_args},
+                    **load_nested_artifacts(
+                        {
+                            k: v
+                            for k, v in args_dict.items()
+                            if k not in self.no_load_args
+                        },
+                        run_id=run.id,
+                    ),
+                }
+            else:
+                args_dict = load_nested_artifacts(args_dict, run_id=run.id)
 
             # run function
             out = self.fn(**args_dict)
