@@ -147,7 +147,7 @@ def rm_artifacts(
                         os.remove(path)
             else:
                 try:
-                    shutil.rmtree(run_dir)
+                    shutil.rmtree(artifacts_dir)
                 except OSError as e:
                     print("Error: %s - %s." % (e.filename, e.strerror))
 
