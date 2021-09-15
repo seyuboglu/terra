@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 import uuid
 from typing import Union
 import importlib
@@ -78,7 +79,10 @@ class Artifact:
 
     def rm(self):
         path = self._get_path()
-        os.remove(path)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
 
         # update artifact_dumps table
         session = tdb.Session()
