@@ -1,18 +1,18 @@
-from functools import lru_cache
-import os
+import importlib
 import json
+import os
+import pickle
 import shutil
 import uuid
+from functools import lru_cache
 from typing import Union
-import importlib
-import pickle
 
-from pandas import read_csv, DataFrame
-import numpy as np
 import meerkat as mk
+import numpy as np
+from pandas import DataFrame, read_csv
 
-from terra.utils import ensure_dir_exists
 import terra.database as tdb
+from terra.utils import ensure_dir_exists
 
 
 class Artifact:
@@ -30,8 +30,7 @@ class Artifact:
             session.commit()
             session.close()
 
-        obj = generalized_read(self._get_path(), self.type)
-        return obj
+        return generalized_read(self._get_path(), self.type)
 
     @classmethod
     def dump(cls, value, run_dir: str):
