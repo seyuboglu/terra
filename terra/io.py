@@ -1,3 +1,4 @@
+from functools import lru_cache
 import os
 import json
 import shutil
@@ -20,6 +21,7 @@ class Artifact:
         return os.path.join(self.run_dir, "artifacts", self.key)
 
     def load(self, run_id: int = None):
+
         if run_id is not None:
             # if a run_id is supplied, log the load to the loads table
             session = tdb.Session()
@@ -28,7 +30,8 @@ class Artifact:
             session.commit()
             session.close()
 
-        return generalized_read(self._get_path(), self.type)
+        obj = generalized_read(self._get_path(), self.type)
+        return obj
 
     @classmethod
     def dump(cls, value, run_dir: str):
@@ -86,11 +89,16 @@ class Artifact:
 
         # update artifact_dumps table
         session = tdb.Session()
-        session.query(tdb.ArtifactDump).filter(tdb.ArtifactDump.id == self.id).update({"rm": True})
+        session.query(tdb.ArtifactDump).filter(tdb.ArtifactDump.id == self.id).update(
+            {"rm": True}
+        )
 
         session.commit()
 
     def __str__(self):
+        return str(self.serialize())
+
+    def __repr__(self):
         return str(self.serialize())
 
     @property
@@ -179,12 +187,13 @@ class TerraDecoder(json.JSONDecoder):
                 return getattr(module, dct["__name__"])
             except ModuleNotFoundError:
                 # sometimes the names of modules, functions and classes change, we still
-                #  want to be able to load Task inputs and outputs that reference them 
+                #  want to be able to load Task inputs and outputs that reference them
                 class ExtinctModule:
                     __name__ = dct["__name__"]
                     __module__ = dct["__module__"]
+
                 return ExtinctModule
-            
+
         if Artifact.is_serialized_artifact(dct):
             return Artifact.deserialize(dct)
         return dct
@@ -201,6 +210,7 @@ def reader(read_type: type):
     return register_reader
 
 
+@lru_cache
 def generalized_read(path, read_type: type):
     if hasattr(read_type, "__terra_read__"):
         return read_type.__terra_read__(path)
@@ -242,7 +252,6 @@ def generalized_write(out, path):
     return path
 
 
-
 @writer(DataFrame)
 def write_dataframe(out, path):
     out.to_csv(path, index=False)
@@ -256,7 +265,7 @@ def read_dataframe(path):
 
 @writer(np.ndarray)
 def write_nparray(out, path):
-    with open(path, 'wb') as f:
+    with open(path, "wb") as f:
         np.save(f, out)
     return path
 
@@ -275,4 +284,3 @@ def write_datapanel(out, path):
 @reader(mk.DataPanel)
 def read_datapanel(path):
     return mk.DataPanel.read(path)
- 

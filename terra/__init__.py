@@ -9,6 +9,7 @@ import sys
 import platform
 import traceback
 from typing import Collection
+from terra.dependencies import get_dependencies
 
 from terra.git import log_git_status, log_fn_source
 from terra.utils import ensure_dir_exists
@@ -222,15 +223,13 @@ class Task:
             session.commit()
 
             # write additional metadata
-            from pip._internal.operations import freeze  # lazy import to reduce startup
-
             meta_dict.update(
                 {
                     "git": git_status,
                     "start_time": meta_dict["start_time"].strftime(
                         "%y-%m-%d_%H-%M-%S-%f"
                     ),
-                    "dependencies": list(freeze.freeze()),
+                    "dependencies": get_dependencies(),
                     "terra_config": TERRA_CONFIG,
                 }
             )
