@@ -62,6 +62,15 @@ class Task:
         run_id = _get_latest_run_id(self.task_dir)
         return run_id
 
+    def _get_latest_successful_run_id(self):
+        return tdb.get_runs(
+            fns=self.__name__,
+            modules=self.__module__,
+            statuses="success",
+            df=False,
+            limit=1,
+        )[0].id
+
     def inp(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
@@ -78,7 +87,8 @@ class Task:
         from terra.io import json_load, load_nested_artifacts
 
         if run_id is None:
-            run_id = _get_latest_run_id(self.task_dir)
+            # unsuccessful run_ids won't have an output
+            run_id = self._get_latest_successful_run_id()
         outs = json_load(
             os.path.join(
                 _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"

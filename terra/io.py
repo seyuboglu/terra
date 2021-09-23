@@ -101,10 +101,10 @@ class Artifact:
         session.commit()
 
     def __str__(self):
-        return str(self.serialize())
+        return f"Artifact(id={self.id}, run_id={self.run_id}, type={self.type})"
 
     def __repr__(self):
-        return str(self.serialize())
+        return str(self)
 
     @property
     def run_id(self):

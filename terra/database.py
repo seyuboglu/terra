@@ -1,11 +1,10 @@
 import os
-from typing import Union, List, Tuple
 from datetime import datetime
-
+from typing import List, Tuple, Union
 
 import sqlalchemy
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, desc
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, desc, ForeignKey
 from sqlalchemy.orm import sessionmaker
 
 from terra.settings import TERRA_CONFIG
@@ -32,7 +31,10 @@ class Run(Base):
     slurm_job_id = Column(Integer)
 
     def get_summary(self):
-        return f"module={self.module}, fn={self.fn}, status={self.status}, run_dir={self.run_dir}"
+        return (
+            f"module={self.module}, fn={self.fn}, "
+            "status={self.status}, run_dir={self.run_dir}"
+        )
 
 
 class ArtifactDump(Base):
@@ -66,6 +68,7 @@ def get_runs(
     fns: Union[str, List[str]] = None,
     statuses: Union[str, List[str]] = None,
     date_range: Tuple[datetime] = None,
+    limit: int = None,
     df: bool = True,
 ) -> List[Run]:
     session = Session()
@@ -92,8 +95,11 @@ def get_runs(
         query = query.filter(Run.start_time < date_range[1])
 
     query = query.order_by(desc(Run.start_time))
+    if limit is not None:
+        query = query.limit(limit)
     if df:
         from pandas import read_sql
+
         out = read_sql(query.statement, query.session.bind)
     else:
         out = query.all()
@@ -121,6 +127,7 @@ def get_artifact_dumps(
     query = query.order_by(desc(ArtifactDump.dump_time))
     if df:
         from pandas import read_sql
+
         out = read_sql(query.statement, query.session.bind)
     else:
         out = query.all()
@@ -148,6 +155,7 @@ def get_artifact_loads(
     query = query.order_by(desc(ArtifactLoad.load_time))
     if df:
         from pandas import read_sql
+
         out = read_sql(query.statement, query.session.bind)
     else:
         out = query.all()
@@ -183,5 +191,6 @@ def get_session(storage_dir: str = None, create: bool = True):
             )
 
     return sessionmaker(bind=engine)
+
 
 Session = get_session()
