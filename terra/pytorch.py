@@ -1,5 +1,7 @@
-from terra.io import writer, reader
 import torch
+
+from terra.io import reader, writer
+
 
 @writer(torch.Tensor)
 def write_tensor(out, path):
@@ -13,7 +15,6 @@ def read_tensor(path):
 
 
 class TerraModule:
-
     def __terra_write__(self, path):
         torch.save({"state_dict": self.state_dict(), "config": self.config}, path)
 

@@ -1,26 +1,26 @@
 """ The `task` module provides a framework for running reproducible analyses."""
 from __future__ import annotations
+
 import os
-from functools import update_wrapper
-from datetime import datetime
-from inspect import getcallargs
+import platform
 import socket
 import sys
-import platform
 import traceback
+from datetime import datetime
+from inspect import getcallargs
 from typing import Collection
-from terra.dependencies import get_dependencies
 
-from terra.git import log_git_status, log_fn_source
-from terra.utils import ensure_dir_exists
+import terra.database as tdb
+from terra.dependencies import get_dependencies
+from terra.git import log_fn_source, log_git_status
 from terra.logging import init_logging
 from terra.notify import (
-    notify_task_completed,
     init_task_notifications,
+    notify_task_completed,
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
-import terra.database as tdb
+from terra.utils import ensure_dir_exists
 
 
 class Task:
@@ -146,20 +146,20 @@ class Task:
     def _run(self, *args, **kwargs):
         from terra.io import json_dump, load_nested_artifacts
 
+        # unpack optional Task modifiers
+        # `return_run_id` instructs terra to return (run_id, returned_obj)
+        return_run_id = kwargs.pop("return_run_id", False)
+
         args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
             args_dict.update(args_dict.pop("kwargs"))
 
-        # unpack optional Task modifiers
-        # `return_run_id` instructs terra to return (run_id, returned_obj)
-        return_run_id = args_dict.pop("return_run_id", False)
-
         # `silence_task` instructs terra not to record the run
         silence_task = args_dict.pop("silence_task", False)
 
         # distributed pytorch lightning (ddp) relies on rerunning the entire training
-        # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163).
+        # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163). # noqa: E501
         # We do not want terra creating a separate task run for each process, so we
         # check if we're on node 0 and rank 0, and if not, we silence the task.
         if ("LOCAL_RANK" in os.environ and "NODE_RANK" in os.environ) and (
@@ -364,8 +364,6 @@ def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
 
 
 def get_log(run_id: int):
-    from terra.io import json_load, load_nested_artifacts
-
     run_dir = get_run_dir(run_id)
 
     log_path = os.path.join(run_dir, "task.log")

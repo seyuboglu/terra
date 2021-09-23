@@ -63,6 +63,9 @@ class Artifact:
         )
 
     def serialize(self):
+        return self.__getstate__()
+
+    def __getstate__(self):
         return {
             "__run_dir__": self.run_dir,
             "__key__": self.key,
@@ -73,11 +76,14 @@ class Artifact:
     @classmethod
     def deserialize(cls, dct):
         artifact = cls()
-        artifact.run_dir = dct["__run_dir__"]
-        artifact.key = dct["__key__"]
-        artifact.id = dct["__id__"]
-        artifact.type = dct["__type__"]
+        artifact.__setstate__(dct)
         return artifact
+
+    def __setstate__(self, state):
+        self.run_dir = state["__run_dir__"]
+        self.key = state["__key__"]
+        self.id = state["__id__"]
+        self.type = state["__type__"]
 
     def rm(self):
         path = self._get_path()

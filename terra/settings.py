@@ -1,11 +1,9 @@
-import os
 import json
-
+import os
 
 TERRA_CONFIG = {
-    "storage_dir": "/Users/sabrieyuboglu/code/terra/test_storage_dir",
-    "slack_web_client_id": "xoxb-1190875346355-1203313826833-6ArzXNwOZ81aHdV95fxqbAcM",
-    "git_dir": "/Users/sabrieyuboglu/code/terra",
+    "storage_dir": "/home/sabri/terra/slice",
+    "git_dir": "/pd/sabri/code/domino",
     "notify": False,
 }
 
