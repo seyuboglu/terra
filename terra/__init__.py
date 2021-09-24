@@ -164,14 +164,15 @@ class Task:
         # unpack optional Task modifiers
         # `return_run_id` instructs terra to return (run_id, returned_obj)
         return_run_id = kwargs.pop("return_run_id", False)
+        # `skip_terra_cache` forces terra to rerun the task
+        skip_terra_cache = kwargs.pop("skip_terra_cache", False)
+        # `silence_task` instructs terra not to record the run
+        silence_task = kwargs.pop("silence_task", False)
 
         args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
             args_dict.update(args_dict.pop("kwargs"))
-
-        # `silence_task` instructs terra not to record the run
-        silence_task = args_dict.pop("silence_task", False)
 
         # distributed pytorch lightning (ddp) relies on rerunning the entire training
         # script for each node (see https://github.com/PyTorchLightning/pytorch-lightning/blob/3bdc0673ea5fcb10035d783df0d913be4df499b6/pytorch_lightning/plugins/training_type/ddp.py#L163). # noqa: E501
@@ -192,7 +193,6 @@ class Task:
             TERRA_CONFIG.update(args_dict.pop("terra_config"))
             tdb.Session = tdb.get_session()  # neeed to recreate db session
 
-        # try encoding inputs here so that we can
         args_to_dump = (
             args_dict
             if self.no_dump_args is None
@@ -201,23 +201,28 @@ class Task:
                 for k, v in args_dict.items()
             }
         )
-        try:
-            encoder = TerraEncoder(indent=4)
-            encoded_inputs = encoder.encode(args_to_dump)
-        except TerraEncodingError:
-            encoded_inputs = None
-        else:
-            input_hash = tdb._hash_inputs(encoded_inputs)
-            cache_run_id = tdb._check_input_hash(
-                input_hash, fn=self.__name__, module=self.__module__
-            )
-            if cache_run_id is not None:
-                # cache hit – return the output of the previous run
-                print(
-                    f"cache hit –> task: {self.fn.__name__}, run_id={cache_run_id}",
-                    flush=True,
+        # check cache for previous run
+        if not skip_terra_cache:
+            # try encoding inputs here so that we can
+            try:
+                encoder = TerraEncoder(indent=4)
+                encoded_inputs = encoder.encode(args_to_dump)
+            except TerraEncodingError:
+                encoded_inputs = None
+            else:
+                input_hash = tdb._hash_inputs(encoded_inputs)
+                cache_run_id = tdb._check_input_hash(
+                    input_hash, fn=self.__name__, module=self.__module__
                 )
-                return self.out(run_id=cache_run_id)
+                if cache_run_id is not None:
+                    # cache hit – return the output of the previous run
+                    print(
+                        f"cache hit –> task: {self.fn.__name__}, run_id={cache_run_id}",
+                        flush=True,
+                    )
+                    return self.out(run_id=cache_run_id)
+        else:
+            encoded_inputs = None
 
         session = tdb.Session()
 

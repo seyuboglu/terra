@@ -1,10 +1,11 @@
-import numpy as np
-import pandas as pd
 import json
 
+import numpy as np
+import pandas as pd
+
 import terra
-from terra import Task
 import terra.database as tdb
+from terra import Task
 from terra.settings import TERRA_CONFIG
 
 TERRA_CONFIG["notify"] = False
@@ -138,11 +139,11 @@ def test_out_scalar(tmpdir):
     assert fn_b.out() == 16
 
     @Task
-    def fn_b(x, run_dir=None):
+    def fn_a(x, run_dir=None):
         return x ** 2, x ** 3
 
-    fn_b(4)
-    a, b = fn_b.out()
+    fn_a(4)
+    a, b = fn_a.out()
     assert a == 16
     assert b == 64
 
@@ -161,12 +162,12 @@ def test_out_np(tmpdir):
     assert np.all(fn_a.out().load() == np.full(4, 3))
 
     @Task
-    def fn_a(x, run_dir=None):
+    def fn_b(x, run_dir=None):
         return np.ones(4) * x, np.ones(4) / x
 
-    fn_a(3)
-    assert np.all(fn_a.out()[0].load() == np.full(4, 3))
-    assert np.all(fn_a.out()[1].load() == np.full(4, 1 / 3))
+    fn_b(3)
+    assert np.all(fn_b.out()[0].load() == np.full(4, 3))
+    assert np.all(fn_b.out()[1].load() == np.full(4, 1 / 3))
 
 
 def test_out_pandas(tmpdir):
@@ -257,9 +258,8 @@ def test_artifact_load_table(tmpdir):
     df = df.merge(run_df[["id", "fn"]], left_on="creating_run_id", right_on="id")
 
     assert len(df) == 4
-    assert (
-        set(zip(df.creating_run_id, df.loading_run_id, df.artifact_id))
-        == set([(1, 2, 2), (1, 2, 3), (1, 2, 4), (2, 3, 5)])
+    assert set(zip(df.creating_run_id, df.loading_run_id, df.artifact_id)) == set(
+        [(1, 2, 2), (1, 2, 3), (1, 2, 4), (2, 3, 5)]
     )
 
 
