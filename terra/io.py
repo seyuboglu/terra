@@ -166,8 +166,12 @@ def json_load(path: str):
         return decoder.decode(f.read())
 
 
+class TerraEncodingError(ValueError):
+    pass
+
+
 class TerraEncoder(json.JSONEncoder):
-    def __init__(self, run_dir: str, *args, **kwargs):
+    def __init__(self, run_dir: str = None, *args, **kwargs):
         json.JSONEncoder.__init__(self, *args, **kwargs)
         self.run_dir = run_dir
 
@@ -177,6 +181,10 @@ class TerraEncoder(json.JSONEncoder):
         elif isinstance(obj, Artifact):
             return obj.serialize()
         else:
+            if self.run_dir is None:
+                raise TerraEncodingError(
+                    "Data includes object to be turned to artifact. Must pass run_dir."
+                )
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
 

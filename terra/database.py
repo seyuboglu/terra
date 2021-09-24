@@ -1,3 +1,4 @@
+import hashlib
 import os
 from datetime import datetime
 from typing import List, Tuple, Union
@@ -28,6 +29,7 @@ class Run(Base):
     platform = Column(String)
     git_commit = Column(String)
     git_dirty = Column(Boolean)
+    input_hash = Column(String)
     slurm_job_id = Column(Integer)
 
     def get_summary(self):
@@ -191,6 +193,32 @@ def get_session(storage_dir: str = None, create: bool = True):
             )
 
     return sessionmaker(bind=engine)
+
+
+def _hash_inputs(encoded_inputs: str):
+    return hashlib.sha1(encoded_inputs.encode("utf-8")).hexdigest()
+
+
+def _check_input_hash(input_hash: str, fn: str, module: str):
+    session = Session()
+
+    query = (
+        session.query(Run)
+        .filter(Run.module == module)
+        .filter(Run.fn == fn)
+        .filter(Run.status == "success")
+        .filter(Run.input_hash == input_hash)
+        .order_by(desc(Run.start_time))
+        .limit(1)
+    )
+
+    # if date_range is not None:
+    #     query = query.filter(Run.start_time > date_range[0])
+    #     query = query.filter(Run.start_time < date_range[1])
+
+    out = query.all()
+    session.close()
+    return out[0].id if len(out) > 0 else None
 
 
 Session = get_session()

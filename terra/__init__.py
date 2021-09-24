@@ -154,7 +154,12 @@ class Task:
         return self._run(*args, **kwargs)
 
     def _run(self, *args, **kwargs):
-        from terra.io import json_dump, load_nested_artifacts
+        from terra.io import (
+            TerraEncoder,
+            TerraEncodingError,
+            json_dump,
+            load_nested_artifacts,
+        )
 
         # unpack optional Task modifiers
         # `return_run_id` instructs terra to return (run_id, returned_obj)
@@ -187,6 +192,33 @@ class Task:
             TERRA_CONFIG.update(args_dict.pop("terra_config"))
             tdb.Session = tdb.get_session()  # neeed to recreate db session
 
+        # try encoding inputs here so that we can
+        args_to_dump = (
+            args_dict
+            if self.no_dump_args is None
+            else {
+                k: ("__skipped__" if k in self.no_dump_args else v)
+                for k, v in args_dict.items()
+            }
+        )
+        try:
+            encoder = TerraEncoder(indent=4)
+            encoded_inputs = encoder.encode(args_to_dump)
+        except TerraEncodingError:
+            encoded_inputs = None
+        else:
+            input_hash = tdb._hash_inputs(encoded_inputs)
+            cache_run_id = tdb._check_input_hash(
+                input_hash, fn=self.__name__, module=self.__module__
+            )
+            if cache_run_id is not None:
+                # cache hit – return the output of the previous run
+                print(
+                    f"cache hit –> task: {self.fn.__name__}, run_id={cache_run_id}",
+                    flush=True,
+                )
+                return self.out(run_id=cache_run_id)
+
         session = tdb.Session()
 
         meta_dict = {
@@ -212,9 +244,6 @@ class Task:
             # https://github.com/PyTorchLightning/pytorch-lightning/issues/5319, so
             # we have to save the main run_dir as an environment variable
             os.environ["RANK_0_RUN_DIR"] = run_dir
-
-            if "run_dir" in args_dict:
-                args_dict["run_dir"] = run_dir
 
             if os.path.exists(run_dir):
                 raise ValueError(f"Run already exists at {run_dir}.")
@@ -246,23 +275,25 @@ class Task:
             json_dump(meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir)
 
             # write inputs
-            args_to_dump = (
-                args_dict
-                if self.no_dump_args is None
-                else {
-                    k: ("__skipped__" if k in self.no_dump_args else v)
-                    for k, v in args_dict.items()
-                }
-            )
-            json_dump(
-                args_to_dump, os.path.join(run_dir, "inputs.json"), run_dir=run_dir
-            )
+            with open(os.path.join(run_dir, "inputs.json"), "w") as f:
+                if encoded_inputs is None:
+                    # if we couldn't encode the inputs before getting a run_dir
+                    # (because there were artifacts that needed to be dumped) do it here
+                    # and getthe input hash
+                    encoder = TerraEncoder(indent=4, run_dir=run_dir)
+                    encoded_inputs = encoder.encode(args_to_dump)
+                    input_hash = tdb._hash_inputs(encoded_inputs)
+
+                f.write(encoded_inputs)
 
             init_logging(os.path.join(run_dir, "task.log"))
 
             init_task_notifications(run_id=run.id)
 
             print(f"task: {self.fn.__name__}, run_id={run.id}", flush=True)
+
+            if "run_dir" in args_dict:
+                args_dict["run_dir"] = run_dir
 
             # load node inputs
             if self.no_load_args is not None:
@@ -291,7 +322,7 @@ class Task:
 
             # log success
             notify_task_completed(run.id)
-
+            run.input_hash = input_hash
             run.status = "success"
             run.end_time = datetime.now()
             session.commit()
@@ -302,6 +333,7 @@ class Task:
             run.status = (
                 "interrupted" if isinstance(e, KeyboardInterrupt) else "failure"
             )
+            run.input_hash = input_hash
             run.end_time = datetime.now()
             session.commit()
             print(msg)

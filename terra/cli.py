@@ -1,17 +1,17 @@
 """
 """
 import importlib
-from json.decoder import JSONDecodeError
 import os
-import subprocess
 import pydoc
 import shutil
+import subprocess
 from datetime import datetime
+from json.decoder import JSONDecodeError
 
 import click
 
-from terra import Task, _get_task_dir
 import terra.database as tdb
+from terra import Task, _get_task_dir
 from terra.utils import ensure_dir_exists
 
 
@@ -56,7 +56,17 @@ def ls(module: str, fn: str, status: str, run_ids: str):
     df = pd.DataFrame([run.__dict__ for run in runs])
     pydoc.pipepager(
         df[
-            ["id", "module", "fn", "run_dir", "status", "slurm_job_id", "start_time", "end_time"]
+            [
+                "id",
+                "module",
+                "fn",
+                "run_dir",
+                "status",
+                "slurm_job_id",
+                "start_time",
+                "end_time",
+                "input_hash",
+            ]
         ].to_string(index=False),
         "less -R",
     )
@@ -98,7 +108,8 @@ def rm_artifacts(
     module: str, fn: str, start_date: str, end_date: str, hanging_only: bool
 ):
     import pandas as pd
-    from terra.io import json_load, get_nested_artifact_paths
+
+    from terra.io import get_nested_artifact_paths, json_load
 
     date_format = "%m-%d-%Y"
     date_range = (
@@ -121,7 +132,7 @@ def rm_artifacts(
     print(f"{hanging_only=}")
     print(f"Removing artifacts from {len(df)} runs of tasks {df['fn'].unique()}")
     if not click.confirm(
-        f"Do you want to remove artifacts for the run_ids you just queried?"
+        "Do you want to remove artifacts for the run_ids you just queried?"
     ):
         print("aborted")
         return
@@ -156,7 +167,9 @@ def rm_artifacts(
 @click.argument("module", type=str)
 @click.argument("fn", type=str)
 @click.option("-s", "--slurm", is_flag=True, help="Submit job using sbatch.")
-@click.option("--srun", is_flag=True, help="Submit job using srun. Must be used with --slurm.")
+@click.option(
+    "--srun", is_flag=True, help="Submit job using srun. Must be used with --slurm."
+)
 @click.option("-e", "--edit", is_flag=True, help="Edit the config prior to running.")
 def run(module: str, fn: str, slurm: bool, srun: bool, edit: bool):
     if srun and not slurm:
@@ -217,7 +230,8 @@ def _write_config_skeleton(config_path, module, fn):
     ensure_dir_exists(os.path.split(config_path)[0])
     with open(config_path, "w") as f:
         f.write(
-            " # INSTRUCTIONS: Edit process parameters below. Close this file (cmd-w) to run the process\n"
+            " # INSTRUCTIONS: Edit process parameters below. Close this file (cmd-w) "
+            " to run the process\n"
             "import terra\n"
             f"from {module} import {fn} \n"
             "\n"
@@ -251,7 +265,7 @@ def _write_slurm_sh(sh_path, slurm_config, module, fn):
         f.write("\n".join(lines))
         f.flush()
         f.close()
-    
+
     # need to provide execute permissions to the user
     subprocess.call(["chmod", "+rx", sh_path])
 
