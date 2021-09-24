@@ -220,7 +220,10 @@ class Task:
                         f"cache hit –> task: {self.fn.__name__}, run_id={cache_run_id}",
                         flush=True,
                     )
-                    return self.out(run_id=cache_run_id)
+                    out = self.out(run_id=cache_run_id)
+                    if return_run_id:
+                        out = (cache_run_id, out) if out is not None else cache_run_id
+                    return out
         else:
             encoded_inputs = None
 
