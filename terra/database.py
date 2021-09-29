@@ -1,14 +1,16 @@
 import hashlib
 import os
 from datetime import datetime
+from time import sleep
 from typing import List, Tuple, Union
 
 import sqlalchemy
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
-from terra.settings import TERRA_CONFIG
+from terra.settings import TERRA_CONFIG, TerraDatabaseSettings
 from terra.utils import ensure_dir_exists
 
 Base = declarative_base()
@@ -62,6 +64,28 @@ class Ref(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     run_dir = Column(String)
+
+
+def safe_commit(session):
+    retries = 0
+    while True:
+        try:
+            return session.commit()
+        except sqlalchemy.exc.OperationalError as e:
+            if (
+                "(sqlite3.OperationalError) database is locked" in str(e)
+            ) and retries < TerraDatabaseSettings.num_commit_retries:
+
+                print(
+                    "Retrying terra database commit "
+                    f"({retries}/{TerraDatabaseSettings.num_commit_retries})."
+                )
+                # https://docs.sqlalchemy.org/en/13/faq/sessions.html#this-session-s-transaction-has-been-rolled-back-due-to-a-previous-exception-during-flush-or-similar
+                session.rollback()
+                sleep(0.5)
+                retries += 1
+            else:
+                raise e
 
 
 def get_runs(
@@ -182,7 +206,13 @@ def get_session(storage_dir: str = None, create: bool = True):
     db_path = os.path.join(storage_dir, "terra.sqlite")
     db_exists = os.path.exists(db_path)
     engine = sqlalchemy.create_engine(
-        f"sqlite:///{os.path.join(storage_dir, 'terra.sqlite')}", echo=False
+        f"sqlite:///{os.path.join(storage_dir, 'terra.sqlite')}",
+        echo=False,
+        # https://docs.sqlalchemy.org/en/14/core/pooling.html#pooling-multiprocessing
+        poolclass=NullPool,
+        # increase the timeout to help avoid the database is locked error
+        # https://stackoverflow.com/questions/15065037/how-to-increase-connection-timeout-using-sqlalchemy-with-sqlite-in-python
+        connect_args={"timeout": 60},
     )
     if not db_exists:
         if create:
@@ -195,11 +225,11 @@ def get_session(storage_dir: str = None, create: bool = True):
     return sessionmaker(bind=engine)
 
 
-def _hash_inputs(encoded_inputs: str):
+def hash_inputs(encoded_inputs: str):
     return hashlib.sha1(encoded_inputs.encode("utf-8")).hexdigest()
 
 
-def _check_input_hash(input_hash: str, fn: str, module: str):
+def check_input_hash(input_hash: str, fn: str, module: str):
     session = Session()
 
     query = (

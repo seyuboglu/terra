@@ -62,10 +62,10 @@ def ls(module: str, fn: str, status: str, run_ids: str):
                 "fn",
                 "run_dir",
                 "status",
-                "slurm_job_id",
                 "start_time",
                 "end_time",
-                "input_hash",
+                "hostname",
+                "git_commit",
             ]
         ].to_string(index=False),
         "less -R",

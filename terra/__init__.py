@@ -191,7 +191,7 @@ class Task:
         # `terra_config` updates the terra config
         if "terra_config" in args_dict:
             TERRA_CONFIG.update(args_dict.pop("terra_config"))
-            tdb.Session = tdb.get_session()  # neeed to recreate db session
+            tdb.Session = tdb.get_session()  # need to recreate db session
 
         args_to_dump = (
             args_dict
@@ -210,8 +210,8 @@ class Task:
             except TerraEncodingError:
                 encoded_inputs = None
             else:
-                input_hash = tdb._hash_inputs(encoded_inputs)
-                cache_run_id = tdb._check_input_hash(
+                input_hash = tdb.hash_inputs(encoded_inputs)
+                cache_run_id = tdb.check_input_hash(
                     input_hash, fn=self.__name__, module=self.__module__
                 )
                 if cache_run_id is not None:
@@ -243,7 +243,7 @@ class Task:
         # add run to terra db
         run = tdb.Run(status="in_progress", **meta_dict)
         session.add(run)
-        session.commit()
+        tdb.safe_commit(session)
         try:
             run_dir = _get_run_dir(self.task_dir, run.id)
 
@@ -267,7 +267,7 @@ class Task:
                 except OSError:
                     print("Could not log source code.")
 
-            session.commit()
+            tdb.safe_commit(session)
 
             # write additional metadata
             meta_dict.update(
@@ -290,7 +290,7 @@ class Task:
                     # and getthe input hash
                     encoder = TerraEncoder(indent=4, run_dir=run_dir)
                     encoded_inputs = encoder.encode(args_to_dump)
-                    input_hash = tdb._hash_inputs(encoded_inputs)
+                    input_hash = tdb.hash_inputs(encoded_inputs)
 
                 f.write(encoded_inputs)
 
@@ -333,7 +333,7 @@ class Task:
             run.input_hash = input_hash
             run.status = "success"
             run.end_time = datetime.now()
-            session.commit()
+            tdb.safe_commit(session)
 
         except (Exception, KeyboardInterrupt) as e:
             msg = traceback.format_exc()
@@ -343,7 +343,7 @@ class Task:
             )
             run.input_hash = input_hash
             run.end_time = datetime.now()
-            session.commit()
+            tdb.safe_commit(session)
             print(msg)
             session.close()
             raise e

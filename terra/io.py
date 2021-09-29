@@ -27,7 +27,7 @@ class Artifact:
             session = tdb.Session()
             entry = tdb.ArtifactLoad(artifact_id=self.id, loading_run_id=run_id)
             session.add(entry)
-            session.commit()
+            tdb.safe_commit(session)
             session.close()
 
         return generalized_read(self._get_path(), self.type)
@@ -47,7 +47,7 @@ class Artifact:
             creating_run_id=artifact.run_id, path=path, type=str(artifact.type)
         )
         session.add(entry)
-        session.commit()
+        tdb.safe_commit(session)
         artifact.id = entry.id
         session.close()
 
@@ -98,7 +98,7 @@ class Artifact:
             {"rm": True}
         )
 
-        session.commit()
+        tdb.safe_commit(session)
 
     def __str__(self):
         return f"Artifact(id={self.id}, run_id={self.run_id}, type={self.type})"
