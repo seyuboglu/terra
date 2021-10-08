@@ -6,6 +6,7 @@ terra_config.json
 **/.DS_Store
 slurm_test.sh
 terra_storage
+service_account_key.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

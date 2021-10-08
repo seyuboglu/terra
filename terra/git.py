@@ -1,4 +1,3 @@
-from functools import lru_cache
 import os
 import subprocess
 import hashlib
@@ -34,8 +33,12 @@ def log_git_status(run_dir: str, exts_to_dump=None) -> dict:
     """
     global git_status
     if git_status is None:
+        git_dir = TERRA_CONFIG["git_dir"]
+        if git_dir is None:
+            return {"commit_hash": None, "dirty": []}
         working_dir = os.getcwd()
-        os.chdir(TERRA_CONFIG["git_dir"])
+        os.chdir(git_dir)
+
         commit_hash = subprocess.check_output(
             ["git", "log", "--pretty=format:%H", "-n", "1"]
         ).decode("utf-8")

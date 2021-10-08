@@ -226,7 +226,7 @@ class Task:
                     return out
         else:
             encoded_inputs = None
-
+        
         session = tdb.Session()
 
         meta_dict = {
@@ -245,7 +245,8 @@ class Task:
         session.add(run)
         tdb.safe_commit(session)
         try:
-            run_dir = _get_run_dir(self.task_dir, run.id)
+            run_id = run.id
+            run_dir = _get_run_dir(self.task_dir, run_id)
 
             # distributed pytorch lightning (ddp) requires that the child processes
             # share the same directories for logging and checkpointing see
@@ -296,9 +297,9 @@ class Task:
 
             init_logging(os.path.join(run_dir, "task.log"))
 
-            init_task_notifications(run_id=run.id)
+            init_task_notifications(run_id=run_id)
 
-            print(f"task: {self.fn.__name__}, run_id={run.id}", flush=True)
+            print(f"task: {self.fn.__name__}, run_id={run_id}", flush=True)
 
             if "run_dir" in args_dict:
                 args_dict["run_dir"] = run_dir
@@ -313,11 +314,11 @@ class Task:
                             for k, v in args_dict.items()
                             if k not in self.no_load_args
                         },
-                        run_id=run.id,
+                        run_id=run_id,
                     ),
                 }
             else:
-                args_dict = load_nested_artifacts(args_dict, run_id=run.id)
+                args_dict = load_nested_artifacts(args_dict, run_id=run_id)
 
             # run function
             out = self.fn(**args_dict)
@@ -329,7 +330,7 @@ class Task:
                 )
 
             # log success
-            notify_task_completed(run.id)
+            notify_task_completed(run_id)
             run.input_hash = input_hash
             run.status = "success"
             run.end_time = datetime.now()
@@ -337,7 +338,7 @@ class Task:
 
         except (Exception, KeyboardInterrupt) as e:
             msg = traceback.format_exc()
-            notify_task_error(run.id, msg)
+            notify_task_error(run_id, msg)
             run.status = (
                 "interrupted" if isinstance(e, KeyboardInterrupt) else "failure"
             )
@@ -349,7 +350,7 @@ class Task:
             raise e
 
         if return_run_id:
-            out = (int(run.id), out) if out is not None else int(run.id)
+            out = (int(run_id), out) if out is not None else int(run_id)
         session.close()
         return out
 

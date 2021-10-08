@@ -199,28 +199,56 @@ def rm_runs(run_ids: Union[int, List[int]]):
     session.close()
 
 
+def _init_google_cloud_sql_engine() -> sqlalchemy.engine.Engine:
+    from google.cloud.sql.connector import connector
+
+    if TERRA_CONFIG.get("cloud_sql_connection", None) is None:
+        raise ValueError(
+            "Must provide `cloud_sql_connection` in config if using `local_db=False`"
+        )
+
+    def getconn():
+        conn = connector.connect(
+            TERRA_CONFIG["cloud_sql_connection"],
+            "pg8000",
+            user=TERRA_CONFIG["user"],
+            password=TERRA_CONFIG["password"],
+            db=TERRA_CONFIG["db"],
+        )
+        return conn
+
+    engine = sqlalchemy.create_engine(
+        "postgresql+pg8000://",
+        creator=getconn,
+    )
+    engine.dialect.description_encoding = None
+    return engine
+
+
 def get_session(storage_dir: str = None, create: bool = True):
 
     storage_dir = TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
     ensure_dir_exists(storage_dir)
-    db_path = os.path.join(storage_dir, "terra.sqlite")
-    db_exists = os.path.exists(db_path)
-    engine = sqlalchemy.create_engine(
-        f"sqlite:///{os.path.join(storage_dir, 'terra.sqlite')}",
-        echo=False,
-        # https://docs.sqlalchemy.org/en/14/core/pooling.html#pooling-multiprocessing
-        poolclass=NullPool,
-        # increase the timeout to help avoid the database is locked error
-        # https://stackoverflow.com/questions/15065037/how-to-increase-connection-timeout-using-sqlalchemy-with-sqlite-in-python
-        connect_args={"timeout": 60},
-    )
+    if TERRA_CONFIG["local_db"]:
+        db_path = os.path.join(storage_dir, 'terra.sqlite')
+        db_exists = os.path.exists(db_path)
+        engine = sqlalchemy.create_engine(
+            f"sqlite:///{db_path}",
+            echo=False,
+            # https://docs.sqlalchemy.org/en/14/core/pooling.html#pooling-multiprocessing
+            poolclass=NullPool,
+            # increase the timeout to help avoid the database is locked error
+            # https://stackoverflow.com/questions/15065037/how-to-increase-connection-timeout-using-sqlalchemy-with-sqlite-in-python
+            connect_args={"timeout": 60},
+        )
+    else:
+        engine = _init_google_cloud_sql_engine()
+        db_exists = len(sqlalchemy.inspect(engine).get_table_names()) == 0
+
+
     if not db_exists:
-        if create:
-            Base.metadata.create_all(engine)
-        else:
-            raise ValueError(
-                f"No database for storage dir {storage_dir}." "Set `create=True`"
-            )
+        print("Creating database...")
+        Base.metadata.create_all(engine)
 
     return sessionmaker(bind=engine)
 

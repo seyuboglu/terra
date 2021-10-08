@@ -2,9 +2,13 @@ import json
 import os
 
 TERRA_CONFIG = {
-    "storage_dir": "/home/sabri/terra/slice",
-    "git_dir": "/pd/sabri/code/domino",
-    "notify": False,
+    "storage_dir": os.path.join(os.getenv("HOME"), ".terra/default"),
+    "git_dir": None,
+    "local_db": True, 
+    "cloud_sql_connection": None, # 
+    "user": None,
+    "password": None,
+    "db": None
 }
 
 if "TERRA_CONFIG_PATH" in os.environ:
