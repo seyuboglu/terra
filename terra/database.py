@@ -243,8 +243,7 @@ def get_session(storage_dir: str = None, create: bool = True):
         )
     else:
         engine = _init_google_cloud_sql_engine()
-        db_exists = len(sqlalchemy.inspect(engine).get_table_names()) == 0
-
+        db_exists = len(sqlalchemy.inspect(engine).get_table_names()) > 0
 
     if not db_exists:
         print("Creating database...")

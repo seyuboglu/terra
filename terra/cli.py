@@ -19,22 +19,9 @@ from terra.utils import ensure_dir_exists
 def cli():
     pass
 
-
-@cli.command()
-@click.option("--run_ids", "-r", type=str, default=None)
-@click.option("--fn", default=None)
-@click.option("--module", default=None)
-def tb(run_ids: str, module: str, fn: str):
-
-    if run_ids is not None:
-        run_ids = map(int, run_ids.split(","))
-        specs = [
-            f"{run.id}:{run.run_dir}" for run in tdb.get_runs(run_ids=run_ids, df=False)
-        ]
-        subprocess.call(["tensorboard", "--logdir_spec", ",".join(specs)])
-    elif fn is not None and module is not None:
-        subprocess.call(["tensorboard", "--logdir", _get_task_dir(module, fn)])
-
+@click.group()
+def push():
+    pass
 
 @cli.command()
 @click.option("--module", default=None)

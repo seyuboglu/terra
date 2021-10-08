@@ -6,6 +6,7 @@ terra_config.json
 **/.DS_Store
 slurm_test.sh
 terra_storage
+remote-terra-config.json
 service_account_key.json
 
 # Byte-compiled / optimized / DLL files
