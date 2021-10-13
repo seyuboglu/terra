@@ -20,7 +20,7 @@ from terra.notify import (
     notify_task_error,
 )
 from terra.settings import TERRA_CONFIG
-from terra.utils import ensure_dir_exists
+from terra.utils import ensure_dir_exists, to_abs_path, to_rel_path
 
 
 class Task:
@@ -77,8 +77,10 @@ class Task:
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         inps = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), "inputs.json"
+            to_abs_path(
+                os.path.join(
+                    _get_run_dir(task_dir=self.task_dir, idx=run_id), "inputs.json"
+                )
             )
         )
         return load_nested_artifacts(inps) if load else inps
@@ -90,8 +92,10 @@ class Task:
             # unsuccessful run_ids won't have an output
             run_id = self._get_latest_successful_run_id()
         outs = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
+            to_abs_path(
+                os.path.join(
+                    _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
+                )
             )
         )
 
@@ -103,8 +107,11 @@ class Task:
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
         artifacts = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            to_abs_path(
+                os.path.join(
+                    _get_run_dir(task_dir=self.task_dir, idx=run_id),
+                    f"{group_name}.json",
+                )
             )
         )
         return load_nested_artifacts(artifacts) if load else artifacts
@@ -118,8 +125,8 @@ class Task:
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
 
-        log_path = os.path.join(
-            _get_run_dir(task_dir=self.task_dir, idx=run_id), "task.log"
+        log_path = to_abs_path(
+            os.path.join(_get_run_dir(task_dir=self.task_dir, idx=run_id), "task.log")
         )
 
         with open(log_path, mode="r") as f:
@@ -132,7 +139,11 @@ class Task:
             run_id = _get_latest_run_id(self.task_dir)
 
         artifacts = json_load(
-            os.path.join(_get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json")
+            to_abs_path(
+                os.path.join(
+                    _get_run_dir(task_dir=self.task_dir, idx=run_id), "meta.json"
+                )
+            )
         )
         return artifacts
 
@@ -141,8 +152,11 @@ class Task:
         from terra.io import json_load, rm_nested_artifacts
 
         artifacts = json_load(
-            os.path.join(
-                _get_run_dir(task_dir=self.task_dir, idx=run_id), f"{group_name}.json"
+            to_abs_path(
+                os.path.join(
+                    _get_run_dir(task_dir=self.task_dir, idx=run_id),
+                    f"{group_name}.json",
+                )
             )
         )
         rm_nested_artifacts(artifacts)
@@ -203,7 +217,6 @@ class Task:
         )
         # check cache for previous run
         if not skip_terra_cache:
-            # try encoding inputs here so that we can
             try:
                 encoder = TerraEncoder(indent=4)
                 encoded_inputs = encoder.encode(args_to_dump)
@@ -226,7 +239,7 @@ class Task:
                     return out
         else:
             encoded_inputs = None
-        
+
         session = tdb.Session()
 
         meta_dict = {
@@ -254,10 +267,10 @@ class Task:
             # we have to save the main run_dir as an environment variable
             os.environ["RANK_0_RUN_DIR"] = run_dir
 
-            if os.path.exists(run_dir):
+            if os.path.exists(to_abs_path(run_dir)):
                 raise ValueError(f"Run already exists at {run_dir}.")
-            ensure_dir_exists(run_dir)
-            run.run_dir = run_dir
+            ensure_dir_exists(to_abs_path(run_dir))
+            run.run_dir = to_rel_path(run_dir)
             git_status = log_git_status(run_dir)
 
             run.git_commit = git_status["commit_hash"]
@@ -281,10 +294,14 @@ class Task:
                     "terra_config": TERRA_CONFIG,
                 }
             )
-            json_dump(meta_dict, os.path.join(run_dir, "meta.json"), run_dir=run_dir)
+            json_dump(
+                meta_dict,
+                to_abs_path(os.path.join(run_dir, "meta.json")),
+                run_dir=run_dir,
+            )
 
             # write inputs
-            with open(os.path.join(run_dir, "inputs.json"), "w") as f:
+            with open(to_abs_path(os.path.join(run_dir, "inputs.json")), "w") as f:
                 if encoded_inputs is None:
                     # if we couldn't encode the inputs before getting a run_dir
                     # (because there were artifacts that needed to be dumped) do it here
@@ -295,7 +312,7 @@ class Task:
 
                 f.write(encoded_inputs)
 
-            init_logging(os.path.join(run_dir, "task.log"))
+            init_logging(to_abs_path(os.path.join(run_dir, "task.log")))
 
             init_task_notifications(run_id=run_id)
 
@@ -326,7 +343,9 @@ class Task:
             # write outputs
             if out is not None:
                 out = json_dump(
-                    out, os.path.join(run_dir, "outputs.json"), run_dir=run_dir
+                    out,
+                    to_abs_path(os.path.join(run_dir, "outputs.json")),
+                    run_dir=run_dir,
                 )
 
             # log success
@@ -361,7 +380,7 @@ class Task:
         if group_name == "outputs" or group_name == "inputs":
             raise ValueError('"outputs" and "inputs" are reserved artifact group names')
 
-        path = os.path.join(run_dir, f"{group_name}.json")
+        path = to_abs_path(os.path.join(run_dir, f"{group_name}.json"))
         if os.path.exists(path):
             if overwrite:
                 # need to remove the artifacts in the group
@@ -380,24 +399,15 @@ def get_run_dir(run_id: int):
     runs = tdb.get_runs(run_ids=run_id, df=False)
     if not runs:
         raise ValueError("Could not find run with `run_id={run_id}`.")
-    return runs[0].run_dir
+    return to_rel_path(runs[0].run_dir)
 
 
 def inp(run_id: int, load: bool = False):
-    from terra.io import json_load, load_nested_artifacts
-
-    run_dir = get_run_dir(run_id)
-    inps = json_load(os.path.join(run_dir, "inputs.json"))
-    return load_nested_artifacts(inps) if load else inps
+    return get(run_id=run_id, load=load, group_name="inputs")
 
 
 def out(run_id: int, load: bool = False):
-    from terra.io import json_load, load_nested_artifacts
-
-    run_dir = get_run_dir(run_id)
-
-    outs = json_load(os.path.join(run_dir, "outputs.json"))
-    return load_nested_artifacts(outs) if load else outs
+    return get(run_id=run_id, load=load, group_name="outputs")
 
 
 def get(run_id: int, group_name: str = "outputs", load: bool = False):
@@ -406,7 +416,7 @@ def get(run_id: int, group_name: str = "outputs", load: bool = False):
 
     run_dir = get_run_dir(run_id)
 
-    artifacts = json_load(os.path.join(run_dir, f"{group_name}.json"))
+    artifacts = json_load(to_abs_path(os.path.join(run_dir, f"{group_name}.json")))
     return load_nested_artifacts(artifacts) if load else artifacts
 
 
@@ -417,7 +427,7 @@ def get_artifacts(run_id: int, group_name: str = "outputs", load: bool = False):
 def get_log(run_id: int):
     run_dir = get_run_dir(run_id)
 
-    log_path = os.path.join(run_dir, "task.log")
+    log_path = to_abs_path(os.path.join(run_dir, "task.log"))
 
     with open(log_path, mode="r") as f:
         return f.read()
@@ -428,7 +438,7 @@ def get_meta(run_id: int = None):
 
     run_dir = get_run_dir(run_id)
 
-    meta = json_load(os.path.join(run_dir, "meta.json"))
+    meta = to_abs_path(json_load(os.path.join(run_dir, "meta.json")))
     return meta
 
 
@@ -438,7 +448,6 @@ def _get_task_dir(module_name: str, fn_name: str):
         module = module[1:]  # TODO: take full path for everything
 
     task_dir = os.path.join(
-        TERRA_CONFIG["storage_dir"],
         "tasks",
         *module,
         fn_name,
@@ -452,7 +461,7 @@ def _get_run_dir(task_dir, idx):
 
 
 def _get_latest_run_id(task_dir):
-    base_dir = os.path.join(task_dir, "_runs")
+    base_dir = to_abs_path(os.path.join(task_dir, "_runs"))
     if not os.path.isdir(base_dir):
         return None
 

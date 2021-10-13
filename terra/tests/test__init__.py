@@ -3,20 +3,20 @@ import json
 import numpy as np
 import pandas as pd
 
-import terra
+import pytest
 import terra.database as tdb
 from terra import Task
-from terra.settings import TERRA_CONFIG
-
-TERRA_CONFIG["notify"] = False
+from .testbed import BaseTestBed
 
 
-def test_make_task(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
+@pytest.fixture()
+def testbed(request, tmpdir):
+    testbed_class, config = request.param
+    return testbed_class(**config, tmpdir=tmpdir)
 
+
+@BaseTestBed.parametrize()
+def test_make_task(testbed: BaseTestBed):
     @Task
     def fn_a(run_dir=None):
         return None
@@ -24,12 +24,8 @@ def test_make_task(tmpdir):
     assert isinstance(fn_a, Task)
 
 
-def test_np_pipeline(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_np_pipeline(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
@@ -49,12 +45,8 @@ def test_np_pipeline(tmpdir):
     assert np.all(out_c.load() == np.full(4, 6))
 
 
-def test_pandas_pipeline(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_pandas_pipeline(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(1, x + 1)])
@@ -80,12 +72,8 @@ def test_pandas_pipeline(tmpdir):
     assert (out_c.a == out_c.c / out_c.b).all()
 
 
-def test_scalar_pipeline(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_scalar_pipeline(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
@@ -105,12 +93,8 @@ def test_scalar_pipeline(tmpdir):
     assert np.all(out_c.load() == np.full(4, 32))
 
 
-def test_nested_np_pipeline(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_nested_np_pipeline(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
@@ -125,12 +109,8 @@ def test_nested_np_pipeline(tmpdir):
     assert np.all(out_c.load() == np.full(4, 5))
 
 
-def test_out_scalar(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_out_scalar(testbed: BaseTestBed):
     @Task
     def fn_b(x, run_dir=None):
         return x ** 2
@@ -148,12 +128,8 @@ def test_out_scalar(tmpdir):
     assert b == 64
 
 
-def test_out_np(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_out_np(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return np.ones(4) * x
@@ -170,12 +146,8 @@ def test_out_np(tmpdir):
     assert np.all(fn_b.out()[1].load() == np.full(4, 1 / 3))
 
 
-def test_out_pandas(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_out_pandas(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(x)])
@@ -186,12 +158,8 @@ def test_out_pandas(tmpdir):
     assert len(fn_a.out().load()) == 10
 
 
-def test_run_table(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_run_table(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
@@ -209,12 +177,8 @@ def test_run_table(tmpdir):
     assert set(run_df.fn) == set(["fn_a", "fn_c"])
 
 
-def test_artifact_table(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_artifact_table(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
@@ -231,12 +195,8 @@ def test_artifact_table(tmpdir):
     assert (artifact_df.type == "<class 'numpy.ndarray'>").all()
 
 
-def test_artifact_load_table(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_artifact_load_table(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
@@ -278,12 +238,8 @@ class CustomClass:
             json.dump(self.__dict__, f)
 
 
-def test_out_custom(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_out_custom(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return CustomClass(attr=x)
@@ -298,12 +254,8 @@ def test_out_custom(tmpdir):
     assert fn_b.out() == 8
 
 
-def test_inp_scalar(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_inp_scalar(testbed: BaseTestBed):
     @Task
     def fn_b(x, run_dir=None):
         return x ** 2
@@ -312,11 +264,8 @@ def test_inp_scalar(tmpdir):
     assert fn_b.inp()["x"] == 4
 
 
-def test_inp_np(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
+@BaseTestBed.parametrize()
+def test_inp_np(testbed: BaseTestBed):
 
     x = np.ones(4)
 
@@ -328,11 +277,8 @@ def test_inp_np(tmpdir):
     assert np.all(fn_a.inp()["x"].load() == x)
 
 
-def test_inp_pandas(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
+@BaseTestBed.parametrize()
+def test_inp_pandas(testbed: BaseTestBed):
 
     df = pd.DataFrame([{"a": idx, "b": idx ** 2} for idx in range(10)])
 
@@ -344,12 +290,8 @@ def test_inp_pandas(tmpdir):
     assert len(fn_a.inp()["x"].load()) == 10
 
 
-def test_inp_custom(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_inp_custom(testbed: BaseTestBed):
     @Task
     def fn_a(x, run_dir=None):
         return x
@@ -359,12 +301,9 @@ def test_inp_custom(tmpdir):
     assert fn_a.inp()["x"].load().attr == 4
 
 
-def test_kwargs_custom(tmpdir):
-    """Functions with kwargs are a bit of an edge case"""
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
+@BaseTestBed.parametrize()
+def test_kwargs_custom(testbed: BaseTestBed):
+    """Functions with kwargs are a bit of an edge testbed: BaseTestBed"""
 
     def fn_b(x, y, z):
         return x * y + z
@@ -382,12 +321,8 @@ def test_kwargs_custom(tmpdir):
     assert fn_a.out() == 15
 
 
-def test_failure(tmpdir):
-    TERRA_CONFIG["storage_dir"] = str(tmpdir)
-    terra.database.Session = (
-        tdb.get_session()
-    )  # need to recreate Session with new tmpdir
-
+@BaseTestBed.parametrize()
+def test_failure(testbed: BaseTestBed):
     @Task
     def fn_a(run_dir=None):
         raise ValueError("error")

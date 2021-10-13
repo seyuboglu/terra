@@ -12,13 +12,14 @@ import numpy as np
 from pandas import DataFrame, read_csv
 
 import terra.database as tdb
-from terra.utils import ensure_dir_exists
+from terra.utils import ensure_dir_exists, to_abs_path
 
 
 class Artifact:
-    def _get_path(self):
-        ensure_dir_exists(os.path.join(self.run_dir, "artifacts"))
-        return os.path.join(self.run_dir, "artifacts", self.key)
+    def _get_abs_path(self):
+        abs_run_dir = to_abs_path(self.run_dir)
+        ensure_dir_exists(os.path.join(abs_run_dir, "artifacts"))
+        return os.path.join(abs_run_dir, "artifacts", self.key)
 
     def load(self, run_id: int = None):
 
@@ -30,7 +31,7 @@ class Artifact:
             tdb.safe_commit(session)
             session.close()
 
-        return generalized_read(self._get_path(), self.type)
+        return generalized_read(self._get_abs_path(), self.type)
 
     @classmethod
     def dump(cls, value, run_dir: str):
@@ -38,7 +39,7 @@ class Artifact:
         artifact.run_dir = run_dir
         artifact.key = uuid.uuid4().hex
         artifact.type = type(value)
-        path = artifact._get_path()
+        path = artifact._get_abs_path()
         generalized_write(value, path)
 
         # add to artifacts table
@@ -86,7 +87,7 @@ class Artifact:
         self.type = state["__type__"]
 
     def rm(self):
-        path = self._get_path()
+        path = self._get_abs_path()
         if os.path.isdir(path):
             shutil.rmtree(path)
         else:

@@ -19,9 +19,28 @@ from terra.utils import ensure_dir_exists
 def cli():
     pass
 
-@click.group()
-def push():
-    pass
+
+@cli.command()
+@click.option("--run_ids", "-r", type=str, default=None)
+@click.option("--bucket_name", "-b", type=str, default=None)
+def push(run_ids: str, bucket_name: str):
+    from terra.remote import push
+
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+        push(run_ids, bucket_name=bucket_name)
+
+
+@cli.command()
+@click.option("--run_ids", "-r", type=str, default=None)
+@click.option("--bucket_name", "-b", type=str, default=None)
+def pull(run_ids: str, bucket_name: str):
+    from terra.remote import pull
+
+    if run_ids is not None:
+        run_ids = map(int, run_ids.split(","))
+        pull(run_ids, bucket_name=bucket_name)
+
 
 @cli.command()
 @click.option("--module", default=None)

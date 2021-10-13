@@ -4,7 +4,7 @@ import hashlib
 import shutil
 import inspect
 
-from terra.utils import ensure_dir_exists
+from terra.utils import ensure_dir_exists, to_abs_path
 from terra.settings import TERRA_CONFIG
 
 
@@ -12,12 +12,12 @@ def _get_src_dump_path(run_dir, file_path):
     """Hash the directory to avoid replicating folder structure of the repo within run_dir"""
     head, tail = os.path.split(file_path)
     file_name = f"{hashlib.sha256(head.encode('utf-8')).hexdigest()[:8]}_{tail}"
-    dump_path = os.path.join(run_dir, "src", file_name)
+    dump_path = to_abs_path(os.path.join(run_dir, "src", file_name))
     return dump_path
 
 
 def log_fn_source(run_dir: str, fn: callable):
-    src_dir = os.path.join(run_dir, "src")
+    src_dir = to_abs_path(os.path.join(run_dir, "src"))
     ensure_dir_exists(src_dir)
     src_path = os.path.join(src_dir, "__main__.py")
     with open(src_path, "w") as f:
