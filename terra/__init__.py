@@ -240,6 +240,7 @@ class Task:
         else:
             encoded_inputs = None
 
+        print(TERRA_CONFIG["local_db"])
         session = tdb.Session()
 
         meta_dict = {
@@ -256,6 +257,8 @@ class Task:
         # add run to terra db
         run = tdb.Run(status="in_progress", **meta_dict)
         session.add(run)
+        print(run.id)
+        print(TERRA_CONFIG["storage_dir"])
         tdb.safe_commit(session)
         try:
             run_id = run.id

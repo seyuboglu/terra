@@ -261,6 +261,9 @@ def get_session(storage_dir: str = None, create: bool = True):
     return sessionmaker(bind=engine)
 
 
+Session = get_session()
+
+
 def hash_inputs(encoded_inputs: str):
     return hashlib.sha1(encoded_inputs.encode("utf-8")).hexdigest()
 
@@ -285,9 +288,6 @@ def check_input_hash(input_hash: str, fn: str, module: str):
     out = query.all()
     session.close()
     return out[0].id if len(out) > 0 else None
-
-
-Session = get_session()
 
 
 def migrate_local_db_to_cloud(
@@ -321,6 +321,9 @@ def migrate_local_db_to_cloud(
                 data = [dict(row) for row in conn_lite.execute(select(table.c))]
 
                 if str(table) == "artifact_loads":
+                    # weird edge case ran into where some artifact_ids were none
+                    # addressed by just dropping those rows
+                    # TODO: remove this
                     data = [row for row in data if row["artifact_id"] != -1]
                 for start_idx in tqdm(range(0, len(data), batch_size)):
                     conn_cloud.execute(

@@ -87,7 +87,7 @@ def push(
                 f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}"'
                 f' at path "{rel_path}".'
             )
-            return
+            continue
 
         if not os.path.isdir(abs_path):
             raise ValueError(
@@ -139,14 +139,16 @@ def pull(
                 f'Skipping run_id={run.id}, already pulled from bucket "{bucket_name}"'
                 f' at path "{rel_path}".'
             )
-            return
+            continue
 
         if not _gcs_dir_exists(rel_path, bucket_name=bucket_name):
             raise ValueError(
                 f"Cannot pull run_id={run.id}, it is not stored in bucket"
                 f" '{bucket_name}'. Try pushing from host '{run.hostname}'."
             )
-
+        print(
+            f'Pulling run_id={run.id} from bucket "{bucket_name} at path "{rel_path}".'
+        )
         _download_dir_from_gcs(
             local_path=abs_path,
             bucket_name=bucket_name,

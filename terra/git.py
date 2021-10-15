@@ -1,15 +1,16 @@
-import os
-import subprocess
 import hashlib
-import shutil
 import inspect
+import os
+import shutil
+import subprocess
 
-from terra.utils import ensure_dir_exists, to_abs_path
 from terra.settings import TERRA_CONFIG
+from terra.utils import ensure_dir_exists, to_abs_path
 
 
 def _get_src_dump_path(run_dir, file_path):
-    """Hash the directory to avoid replicating folder structure of the repo within run_dir"""
+    """Hash the directory to avoid replicating folder structure of the repo within
+    run_dir"""
     head, tail = os.path.split(file_path)
     file_name = f"{hashlib.sha256(head.encode('utf-8')).hexdigest()[:8]}_{tail}"
     dump_path = to_abs_path(os.path.join(run_dir, "src", file_name))
@@ -69,9 +70,10 @@ def log_git_status(run_dir: str, exts_to_dump=None) -> dict:
             _, ext = os.path.splitext(dirty_path)
 
             if status != "D" and ext in exts_to_dump:
-                # hash the directory to avoid replicating folder structure of the repo within run_dir
+                # hash the directory to avoid replicating folder structure of the repo
+                # within run_dir
                 dst_path = _get_src_dump_path(run_dir, dirty_path)
-                ensure_dir_exists(os.path.join(run_dir, "src"))
+                ensure_dir_exists(os.path.dirname(dst_path))
                 shutil.copy(src=os.path.join(top_level, dirty_path), dst=dst_path)
                 dirty.append({"file": dirty_path, "status": status, "dumped": dst_path})
             else:
