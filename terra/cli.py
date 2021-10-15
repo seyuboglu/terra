@@ -47,19 +47,24 @@ def pull(run_ids: str, bucket_name: str):
 @click.option("--fn", default=None)
 @click.option("--status", default=None)
 @click.option("--run_ids", "-r", type=str, default=None)
-def ls(module: str, fn: str, status: str, run_ids: str):
+@click.option("--limit", type=int, default=1_000)
+def ls(module: str, fn: str, status: str, run_ids: str, limit: int):
     import pandas as pd
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
-
+    print("1")
     runs = tdb.get_runs(
-        modules=module, fns=fn, statuses=status, run_ids=run_ids, df=False
+        modules=module, fns=fn, statuses=status, run_ids=run_ids, df=False, limit=limit
     )
+    print("1")
+
     if len(runs) == 0:
         print("Query returned no tasks.")
         return
+    print("1")
     df = pd.DataFrame([run.__dict__ for run in runs])
+    print("1")
     pydoc.pipepager(
         df[
             [

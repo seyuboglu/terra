@@ -5,7 +5,16 @@ from time import sleep
 from typing import List, Tuple, Union
 
 import sqlalchemy
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, desc
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    desc,
+    select,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
@@ -230,7 +239,7 @@ def get_session(storage_dir: str = None, create: bool = True):
     storage_dir = TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
     ensure_dir_exists(storage_dir)
     if TERRA_CONFIG["local_db"]:
-        db_path = os.path.join(storage_dir, 'terra.sqlite')
+        db_path = os.path.join(storage_dir, "terra.sqlite")
         db_exists = os.path.exists(db_path)
         engine = sqlalchemy.create_engine(
             f"sqlite:///{db_path}",
@@ -279,3 +288,41 @@ def check_input_hash(input_hash: str, fn: str, module: str):
 
 
 Session = get_session()
+
+
+def migrate_local_db_to_cloud(
+    storage_dir: str = None, batch_size: int = 1_000, tables: List[str] = None
+):
+    from tqdm import tqdm
+
+    storage_dir = TERRA_CONFIG["storage_dir"] if storage_dir is None else storage_dir
+    db_path = os.path.join(storage_dir, "terra.sqlite")
+    sqlite_engine = sqlalchemy.create_engine(
+        f"sqlite:///{db_path}",
+        echo=False,
+        # https://docs.sqlalchemy.org/en/14/core/pooling.html#pooling-multiprocessing
+        poolclass=NullPool,
+        # increase the timeout to help avoid the database is locked error
+        # https://stackoverflow.com/questions/15065037/how-to-increase-connection-timeout-using-sqlalchemy-with-sqlite-in-python
+        connect_args={"timeout": 60},
+    )
+
+    cloud_engine = _init_google_cloud_sql_engine()
+
+    Base.metadata.create_all(cloud_engine)
+
+    with sqlite_engine.connect() as conn_lite:
+        with cloud_engine.connect() as conn_cloud:
+            for table in Base.metadata.sorted_tables:
+                if tables is not None and str(table) not in tables:
+                    continue
+
+                print(f"Migrating table `{table}`...")
+                data = [dict(row) for row in conn_lite.execute(select(table.c))]
+
+                if str(table) == "artifact_loads":
+                    data = [row for row in data if row["artifact_id"] != -1]
+                for start_idx in tqdm(range(0, len(data), batch_size)):
+                    conn_cloud.execute(
+                        table.insert().values(data[start_idx : start_idx + batch_size])
+                    )

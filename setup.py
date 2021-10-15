@@ -20,7 +20,7 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": ["terra=terra.cli:cli"]},
     python_requires=">=3.8",
-    # TODO(sabri): test these version lower bounds 
+    # TODO(sabri): test these version lower bounds
     install_requires=[
         "pandas>=1.1.0",
         "numpy>=1.0",
@@ -29,6 +29,9 @@ setuptools.setup(
         "sqlalchemy>=1.3",
         "click>=7.0.0",
         "torch>=1.0.0",
-        "meerkat-ml"
+        "meerkat-ml",
+        "pg8000",
+        "google-cloud-storage",
+        "cloud-sql-python-connector[driver]",
     ],
 )
