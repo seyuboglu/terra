@@ -1,13 +1,14 @@
-from typing import Collection, Union
 import glob
 import os
+from datetime import datetime
+from typing import Collection, List, Tuple, Union
+
 import terra.database as tdb
 from terra.settings import TERRA_CONFIG
 from terra.tools.lazy import LazyLoader
-from terra.utils import to_rel_path, to_abs_path
+from terra.utils import to_abs_path, to_rel_path
 
 storage = LazyLoader("google.cloud.storage")
-
 
 
 def _upload_dir_to_gcs(local_path: str, bucket_name: str, gcs_path: str):
@@ -48,7 +49,14 @@ def _gcs_dir_exists(gcs_path: str, bucket_name: str):
 
 
 def push(
-    run_id: Union[int, Collection[int]], bucket_name: str = None, force: bool = False
+    run_ids: Union[int, Collection[int]] = None,
+    modules: Union[str, List[str]] = None,
+    fns: Union[str, List[str]] = None,
+    statuses: Union[str, List[str]] = None,
+    date_range: Tuple[datetime] = None,
+    limit: int = None,
+    bucket_name: str = None,
+    force: bool = False,
 ):
     if bucket_name is None:
         bucket_name = TERRA_CONFIG["repo_name"]
@@ -57,7 +65,15 @@ def push(
                 "Cannot push because no `repo_name` specified in terra config."
             )
 
-    runs = tdb.get_runs(run_id, df=False)
+    runs = tdb.get_runs(
+        run_ids=run_ids,
+        modules=modules,
+        fns=fns,
+        statuses=statuses,
+        date_range=date_range,
+        limit=limit,
+        df=False,
+    )
     for run in runs:
         if run.status == "in_progress":
             raise ValueError(
@@ -90,7 +106,14 @@ def push(
 
 
 def pull(
-    run_id: Union[int, Collection[int]], bucket_name: str = None, force: bool = False
+    run_ids: Union[int, Collection[int]] = None,
+    modules: Union[str, List[str]] = None,
+    fns: Union[str, List[str]] = None,
+    statuses: Union[str, List[str]] = None,
+    date_range: Tuple[datetime] = None,
+    limit: int = None,
+    bucket_name: str = None,
+    force: bool = False,
 ):
     if bucket_name is None:
         bucket_name = TERRA_CONFIG["repo_name"]
@@ -98,7 +121,15 @@ def pull(
             raise ValueError(
                 "Cannot push because no `repo_name` specified in terra config."
             )
-    runs = tdb.get_runs(run_id, df=False)
+    runs = tdb.get_runs(
+        run_ids=run_ids,
+        modules=modules,
+        fns=fns,
+        statuses=statuses,
+        date_range=date_range,
+        limit=limit,
+        df=False,
+    )
     for run in runs:
         rel_path = to_rel_path(run.run_dir)
         abs_path = to_abs_path(rel_path)

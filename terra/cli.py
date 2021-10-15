@@ -16,46 +16,68 @@ from terra.utils import ensure_dir_exists
 
 
 @click.group()
-def cli():
-    pass
-
-
-@cli.command()
-@click.option("--run_ids", "-r", type=str, default=None)
-@click.option("--bucket_name", "-b", type=str, default=None)
-def push(run_ids: str, bucket_name: str):
-    from terra.remote import push
-
-    if run_ids is not None:
-        run_ids = map(int, run_ids.split(","))
-        push(run_ids, bucket_name=bucket_name)
-
-
-@cli.command()
-@click.option("--run_ids", "-r", type=str, default=None)
-@click.option("--bucket_name", "-b", type=str, default=None)
-def pull(run_ids: str, bucket_name: str):
-    from terra.remote import pull
-
-    if run_ids is not None:
-        run_ids = map(int, run_ids.split(","))
-        pull(run_ids, bucket_name=bucket_name)
-
-
-@cli.command()
 @click.option("--module", default=None)
 @click.option("--fn", default=None)
 @click.option("--status", default=None)
 @click.option("--run_ids", "-r", type=str, default=None)
+@click.option("--start_date", type=str, default=None)
+@click.option("--end_date", type=str, default=None)
 @click.option("--limit", type=int, default=1_000)
-def ls(module: str, fn: str, status: str, run_ids: str, limit: int):
-    import pandas as pd
+@click.pass_context
+def cli(
+    ctx,
+    module: str,
+    fn: str,
+    run_ids: str,
+    status: str,
+    start_date: str,
+    end_date: str,
+    limit: int,
+):
+    ctx.ensure_object(dict)
+    ctx.obj["modules"] = module
+    ctx.obj["fns"] = fn
+    ctx.obj["statuses"] = status
+    ctx.obj["limit"] = limit
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
-    runs = tdb.get_runs(
-        modules=module, fns=fn, statuses=status, run_ids=run_ids, df=False, limit=limit
-    )
+    ctx.obj["run_ids"] = run_ids
+
+    ctx.obj["date_range"] = None
+    date_format = "%m-%d-%Y"
+    if start_date is not None and end_date is not None:
+        ctx.obj["date_range"] = (
+            datetime.strptime(start_date, date_format),
+            datetime.strptime(end_date, date_format),
+        )
+
+
+@cli.command()
+@click.option("--bucket_name", "-b", type=str, default=None)
+@click.pass_context
+def push(ctx, bucket_name: str):
+    from terra.remote import push
+
+    push(**ctx.obj, bucket_name=bucket_name)
+
+
+@cli.command()
+@click.pass_context
+@click.option("--bucket_name", "-b", type=str, default=None)
+def pull(ctx, bucket_name: str):
+    from terra.remote import pull
+
+    pull(**ctx.obj, bucket_name=bucket_name)
+
+
+@cli.command()
+@click.pass_context
+def ls(ctx):
+    import pandas as pd
+
+    print(ctx.obj)
+    runs = tdb.get_runs(**ctx.obj, df=False)
 
     if len(runs) == 0:
         print("Query returned no tasks.")
