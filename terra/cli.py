@@ -53,18 +53,14 @@ def ls(module: str, fn: str, status: str, run_ids: str, limit: int):
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
-    print("1")
     runs = tdb.get_runs(
         modules=module, fns=fn, statuses=status, run_ids=run_ids, df=False, limit=limit
     )
-    print("1")
 
     if len(runs) == 0:
         print("Query returned no tasks.")
         return
-    print("1")
     df = pd.DataFrame([run.__dict__ for run in runs])
-    print("1")
     pydoc.pipepager(
         df[
             [
