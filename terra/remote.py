@@ -38,8 +38,9 @@ def _download_dir_from_gcs(local_path: str, bucket_name: str, gcs_path: str):
     blob = bucket.blob(gcs_path + ".tar.gz")
 
     tarball_path = local_path + ".tar.gz"
+    os.makedirs(os.path.dirname(tarball_path), exist_ok=True)
     blob.download_to_filename(tarball_path)
-    subprocess.call(["tar", "-xzf", tarball_path])
+    subprocess.call(["tar", "-xzf", tarball_path, "-C", TERRA_CONFIG["storage_dir"]])
 
 
 def _get_pushed_run_ids(bucket_name: str):
