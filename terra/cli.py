@@ -55,11 +55,12 @@ def cli(
 
 @cli.command()
 @click.option("--bucket_name", "-b", type=str, default=None)
+@click.option("--force", "-f", is_flag=True, default=False)
 @click.pass_context
-def push(ctx, bucket_name: str):
+def push(ctx, bucket_name: str, force: bool):
     from terra.remote import push
 
-    push(**ctx.obj, bucket_name=bucket_name)
+    push(**ctx.obj, bucket_name=bucket_name, force=force)
 
 
 @cli.command()
@@ -76,7 +77,6 @@ def pull(ctx, bucket_name: str):
 def ls(ctx):
     import pandas as pd
 
-    print(ctx.obj)
     runs = tdb.get_runs(**ctx.obj, df=False)
 
     if len(runs) == 0:

@@ -1,7 +1,11 @@
-import glob
 import os
+import subprocess
+import tempfile
 from datetime import datetime
+from logging import warn
 from typing import Collection, List, Tuple, Union
+
+import regex as re
 
 import terra.database as tdb
 from terra.settings import TERRA_CONFIG
@@ -9,43 +13,40 @@ from terra.tools.lazy import LazyLoader
 from terra.utils import to_abs_path, to_rel_path
 
 storage = LazyLoader("google.cloud.storage")
+exceptions = LazyLoader("google.cloud.exceptions")
 
 
 def _upload_dir_to_gcs(local_path: str, bucket_name: str, gcs_path: str):
     client = storage.Client()
     bucket = client.get_bucket(bucket_name)
     assert os.path.isdir(local_path)
-    for local_file in glob.glob(local_path + "/**"):
-        if not os.path.isfile(local_file):
-            _upload_dir_to_gcs(
-                local_file, bucket, gcs_path + "/" + os.path.basename(local_file)
-            )
-        else:
-            remote_path = os.path.join(gcs_path, local_file[1 + len(local_path) :])
-            blob = bucket.blob(remote_path)
-            blob.upload_from_filename(local_file)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tarball_path = os.path.join(tmp_dir, "run.tar.gz")
+        subprocess.call(
+            ["tar", "-czf", tarball_path, "-C", TERRA_CONFIG["storage_dir"], gcs_path]
+        )
+        remote_path = gcs_path + ".tar.gz"
+        blob = bucket.blob(remote_path)
+        blob.upload_from_filename(tarball_path)
 
 
 def _download_dir_from_gcs(local_path: str, bucket_name: str, gcs_path: str):
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
+    gcs_path + ".tar.gz"
+    blob = bucket.blob(gcs_path + ".tar.gz")
 
-    blobs = bucket.list_blobs(prefix=gcs_path)
-    for blob in blobs:
-        path = os.path.join(local_path, os.path.relpath(blob.name, gcs_path))
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        blob.download_to_filename(path)
+    tarball_path = local_path + ".tar.gz"
+    blob.download_to_filename(tarball_path)
+    subprocess.call(["tar", "-xzf", tarball_path])
 
 
-def _gcs_dir_exists(gcs_path: str, bucket_name: str):
+def _get_pushed_run_ids(bucket_name: str):
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
-
-    # it seems like this is the best way to check for existence of directory, using
-    # weird for loop structure since we don't want to iterate over the whole list
-    for _ in bucket.list_blobs(prefix=gcs_path):
-        return True
-    return False
+    blobs = " ".join(blob.name for blob in bucket.list_blobs())
+    return set(map(int, re.findall(r"_runs\/(\d+).tar.gz", blobs)))
 
 
 def push(
@@ -65,6 +66,9 @@ def push(
                 "Cannot push because no `repo_name` specified in terra config."
             )
 
+    if not force:
+        pushed_run_ids = _get_pushed_run_ids(bucket_name=bucket_name)
+
     runs = tdb.get_runs(
         run_ids=run_ids,
         modules=modules,
@@ -76,13 +80,11 @@ def push(
     )
     for run in runs:
         if run.status == "in_progress":
-            raise ValueError(
-                f"Cannot push run_id={run.id} because the run's in progress."
-            )
+            warn(f"Skipping run_id={run.id} because the run's in progress.")
         rel_path = to_rel_path(run.run_dir)
         abs_path = to_abs_path(run.run_dir)
 
-        if _gcs_dir_exists(rel_path, bucket_name=bucket_name) and not force:
+        if not force and (run.id in pushed_run_ids):
             print(
                 f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}"'
                 f' at path "{rel_path}".'
@@ -96,7 +98,7 @@ def push(
             )
 
         print(
-            f'Pushing run_id={run.id} to bucket "{bucket_name}"" at path "{rel_path}".'
+            f'Pushing run_id={run.id} to bucket "{bucket_name}" at path "{rel_path}".'
         )
         _upload_dir_to_gcs(
             abs_path,
@@ -141,16 +143,17 @@ def pull(
             )
             continue
 
-        if not _gcs_dir_exists(rel_path, bucket_name=bucket_name):
+        print(
+            f'Pulling run_id={run.id} from bucket "{bucket_name} at path "{rel_path}".'
+        )
+        try:
+            _download_dir_from_gcs(
+                local_path=abs_path,
+                bucket_name=bucket_name,
+                gcs_path=rel_path,
+            )
+        except exceptions.NotFound:
             raise ValueError(
                 f"Cannot pull run_id={run.id}, it is not stored in bucket"
                 f" '{bucket_name}'. Try pushing from host '{run.hostname}'."
             )
-        print(
-            f'Pulling run_id={run.id} from bucket "{bucket_name} at path "{rel_path}".'
-        )
-        _download_dir_from_gcs(
-            local_path=abs_path,
-            bucket_name=bucket_name,
-            gcs_path=rel_path,
-        )
