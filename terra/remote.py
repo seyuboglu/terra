@@ -6,6 +6,7 @@ from logging import warn
 from typing import Collection, List, Tuple, Union
 
 import regex as re
+from tqdm import tqdm
 
 import terra.database as tdb
 from terra.settings import TERRA_CONFIG
@@ -79,7 +80,7 @@ def push(
         limit=limit,
         df=False,
     )
-    for run in runs:
+    for run in tqdm(runs):
         if run.status == "in_progress":
             warn(f"Skipping run_id={run.id} because the run's in progress.")
             continue
