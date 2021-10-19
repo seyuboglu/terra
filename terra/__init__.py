@@ -438,7 +438,7 @@ def get_meta(run_id: int = None):
 
     run_dir = get_run_dir(run_id)
 
-    meta = to_abs_path(json_load(os.path.join(run_dir, "meta.json")))
+    meta = json_load(to_abs_path(os.path.join(run_dir, "meta.json")))
     return meta
 
 
