@@ -82,6 +82,7 @@ def push(
     for run in runs:
         if run.status == "in_progress":
             warn(f"Skipping run_id={run.id} because the run's in progress.")
+            continue
         rel_path = to_rel_path(run.run_dir)
         abs_path = to_abs_path(run.run_dir)
 
