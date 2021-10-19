@@ -56,11 +56,12 @@ def cli(
 @cli.command()
 @click.option("--bucket_name", "-b", type=str, default=None)
 @click.option("--force", "-f", is_flag=True, default=False)
+@click.option("--num_workers", type=int, default=0)
 @click.pass_context
-def push(ctx, bucket_name: str, force: bool):
+def push(ctx, bucket_name: str, force: bool, num_workers: int):
     from terra.remote import push
 
-    push(**ctx.obj, bucket_name=bucket_name, force=force)
+    push(**ctx.obj, bucket_name=bucket_name, force=force, num_workers=num_workers)
 
 
 @cli.command()

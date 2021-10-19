@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import os
 import subprocess
 import tempfile
@@ -60,6 +61,7 @@ def push(
     limit: int = None,
     bucket_name: str = None,
     force: bool = False,
+    num_workers: bool = 0,
 ):
     if bucket_name is None:
         bucket_name = TERRA_CONFIG["repo_name"]
@@ -80,19 +82,22 @@ def push(
         limit=limit,
         df=False,
     )
+    if num_workers > 0:
+        pool = mp.Pool(processes=num_workers)
+        async_results = []
+
     for run in tqdm(runs):
         if run.status == "in_progress":
             warn(f"Skipping run_id={run.id} because the run's in progress.")
             continue
-        rel_path = to_rel_path(run.run_dir)
-        abs_path = to_abs_path(run.run_dir)
-
         if not force and (run.id in pushed_run_ids):
             print(
-                f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}"'
-                f' at path "{rel_path}".'
+                f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}".'
             )
             continue
+
+        rel_path = to_rel_path(run.run_dir)
+        abs_path = to_abs_path(run.run_dir)
 
         if not os.path.isdir(abs_path):
             raise ValueError(
@@ -100,14 +105,26 @@ def push(
                 f" Try pushing from host '{run.hostname}'."
             )
 
-        print(
-            f'Pushing run_id={run.id} to bucket "{bucket_name}" at path "{rel_path}".'
-        )
-        _upload_dir_to_gcs(
-            abs_path,
-            bucket_name=bucket_name,
-            gcs_path=rel_path,
-        )
+        if num_workers > 0:
+            result = pool.apply_async(
+                func=_upload_dir_to_gcs,
+                kwds=dict(
+                    local_path=abs_path,
+                    bucket_name=bucket_name,
+                    gcs_path=rel_path,
+                ),
+            )
+            async_results.append(result)
+        else:
+            print(f'Pushing run_id={run.id} to bucket "{bucket_name}" at "{rel_path}".')
+            _upload_dir_to_gcs(
+                local_path=abs_path,
+                bucket_name=bucket_name,
+                gcs_path=rel_path,
+            )
+
+        if num_workers > 0:
+            [result.get() for result in tqdm(async_results)]
 
 
 def pull(
