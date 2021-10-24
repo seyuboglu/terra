@@ -7,11 +7,13 @@ import shutil
 import subprocess
 from datetime import datetime
 from json.decoder import JSONDecodeError
+from multiprocessing import Pool
 
 import click
 
 import terra.database as tdb
 from terra import Task, _get_task_dir
+from terra.settings import TERRA_CONFIG
 from terra.utils import ensure_dir_exists
 
 
@@ -103,6 +105,38 @@ def ls(ctx):
 
 
 @cli.command()
+@click.option("--num_workers", type=int, default=0)
+@click.pass_context
+def rm_local(ctx, num_workers: int):
+    from tqdm import tqdm
+
+    runs = tdb.get_runs(**ctx.obj, df=False)
+
+    if not click.confirm(
+        "Do you want to remove artifacts for the run_ids you just queried?"
+    ):
+        print("aborted")
+        return
+
+    run_dirs = [run.run_dir for run in runs]
+
+    def _rm_dir(run_dir):
+        assert run_dir.startswith(TERRA_CONFIG["storage_dir"])
+        shutil.rmtree(run_dir)
+
+    if num_workers > 0:
+        pool = Pool(processes=8)
+        [
+            _rm_dir(run_dir)
+            for run_dir in tqdm(
+                pool.imap_unordered(_rm_dir, run_dirs), total=len(run_dirs)
+            )
+        ]
+    else:
+        [_rm_dir(run_dir) for run_dir in tqdm(run_dirs)]
+
+
+@cli.command()
 def du():
     from terra.settings import TERRA_CONFIG
 
@@ -110,22 +144,6 @@ def du():
     os.chdir(TERRA_CONFIG["storage_dir"])
     subprocess.call(["du", "-sh", "--", os.path.join(TERRA_CONFIG["storage_dir"])])
     os.chdir(working_dir)
-
-
-@cli.command()
-@click.argument("run_id", type=int)
-def rm(run_id: int):
-    runs = tdb.get_runs(run_ids=run_id, df=False)
-    if len(runs) == 0:
-        raise ValueError(f"Could not find run with id {run_id}.")
-    run = runs[0]
-
-    if click.confirm(
-        f"Are you sure you want to remove run with id {run.id}: \n {run.get_summary()}"
-    ):
-        tdb.rm_runs(run.id)
-        shutil.rmtree(run.run_dir)
-        print(f"Removed run with id {run_id}")
 
 
 @cli.command()
