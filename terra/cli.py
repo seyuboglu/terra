@@ -104,10 +104,21 @@ def ls(ctx):
     )
 
 
+def _rm_dir(run_dir):
+    if run_dir is None:
+        return
+    try:
+        assert run_dir.startswith(TERRA_CONFIG["storage_dir"])
+        shutil.rmtree(run_dir)
+    except FileNotFoundError:
+        pass
+
+
 @cli.command()
 @click.option("--num_workers", type=int, default=0)
+@click.option("--exclude_run_ids", type=str, default=None)
 @click.pass_context
-def rm_local(ctx, num_workers: int):
+def rm_local(ctx, num_workers: int, exclude_run_ids: str):
     from tqdm import tqdm
 
     runs = tdb.get_runs(**ctx.obj, df=False)
@@ -118,20 +129,22 @@ def rm_local(ctx, num_workers: int):
         print("aborted")
         return
 
-    run_dirs = [run.run_dir for run in runs]
-
-    def _rm_dir(run_dir):
-        assert run_dir.startswith(TERRA_CONFIG["storage_dir"])
-        shutil.rmtree(run_dir)
+    if exclude_run_ids is not None:
+        if exclude_run_ids.endswith(".txt"):
+            with open(exclude_run_ids, "r") as f:
+                exclude_run_ids = f.read()
+        exclude_run_ids = set(map(int, exclude_run_ids.split(",")))
+        print(len(runs))
+        run_dirs = [run.run_dir for run in runs if run.id not in exclude_run_ids]
+        print(len(run_dirs))
+    else:
+        run_dirs = [run.run_dir for run in runs]
 
     if num_workers > 0:
         pool = Pool(processes=8)
-        [
-            _rm_dir(run_dir)
-            for run_dir in tqdm(
-                pool.imap_unordered(_rm_dir, run_dirs), total=len(run_dirs)
-            )
-        ]
+        for _ in tqdm(pool.imap_unordered(_rm_dir, run_dirs), total=len(run_dirs)):
+            pass
+
     else:
         [_rm_dir(run_dir) for run_dir in tqdm(run_dirs)]
 

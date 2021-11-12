@@ -145,6 +145,7 @@ def get_runs(
 
 def get_artifact_dumps(
     run_ids: Union[int, List[int]] = None,
+    artifact_ids: Union[int, List[int]] = None,
     date_range: Tuple[datetime] = None,
     df: bool = True,
 ):
@@ -154,6 +155,10 @@ def get_artifact_dumps(
     if run_ids is not None:
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
         query = query.filter(ArtifactDump.creating_run_id.in_(run_ids))
+
+    if artifact_ids is not None:
+        artifact_ids = [artifact_ids] if isinstance(artifact_ids, int) else artifact_ids
+        query = query.filter(ArtifactDump.id.in_(artifact_ids))
 
     if date_range is not None:
         query = query.filter(ArtifactDump.dump_time > date_range[0])
@@ -173,6 +178,7 @@ def get_artifact_dumps(
 
 def get_artifact_loads(
     run_ids: Union[int, List[int]] = None,
+    artifact_ids: Union[int, List[int]] = None,
     date_range: Tuple[datetime] = None,
     df: bool = True,
 ):
@@ -182,6 +188,10 @@ def get_artifact_loads(
     if run_ids is not None:
         run_ids = [run_ids] if isinstance(run_ids, int) else run_ids
         query = query.filter(ArtifactLoad.loading_run_id.in_(run_ids))
+
+    if artifact_ids is not None:
+        artifact_ids = [artifact_ids] if isinstance(artifact_ids, int) else artifact_ids
+        query = query.filter(ArtifactLoad.artifact_id.in_(artifact_ids))
 
     if date_range is not None:
         query = query.filter(ArtifactLoad.load_time > date_range[0])

@@ -95,6 +95,8 @@ def push(
                 f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}".'
             )
             continue
+        if run.run_dir is None:
+            continue
 
         rel_path = to_rel_path(run.run_dir)
         abs_path = to_abs_path(run.run_dir)
@@ -123,8 +125,8 @@ def push(
                 gcs_path=rel_path,
             )
 
-        if num_workers > 0:
-            [result.get() for result in tqdm(async_results)]
+    if num_workers > 0:
+        [result.get() for result in tqdm(async_results)]
 
 
 def pull(
