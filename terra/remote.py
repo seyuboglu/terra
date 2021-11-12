@@ -163,7 +163,7 @@ def pull(
         if os.path.isdir(abs_path) and not force:
             print(
                 f'Skipping run_id={run.id}, already pulled from bucket "{bucket_name}"'
-                f' at path "{rel_path}".'
+                f' at path "{abs_path}".'
             )
             continue
 
