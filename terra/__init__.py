@@ -319,7 +319,7 @@ class Task:
             print(f"task: {self.fn.__name__}, run_id={run_id}", flush=True)
 
             if "run_dir" in args_dict:
-                args_dict["run_dir"] = run_dir
+                args_dict["run_dir"] = to_abs_path(run_dir)
 
             # load node inputs
             if self.no_load_args is not None:
