@@ -252,7 +252,7 @@ def writer(write_type: type):
 
 
 def generalized_write(out, path):
-    if hasattr(out, "__terra_write__"):
+    if hasattr(out, "__terra_write__") and callable(out.__terra_write__):
         path = out.__terra_write__(path)
     elif type(out) in writer_registry:
         path = writer_registry[type(out)](out, path)

@@ -49,5 +49,5 @@ def to_rel_path(path: str):
 def to_abs_path(path: str):
     if os.path.isabs(path):
         # if the abs path is on a different machine normalize it to this machine
-        return to_abs_path(to_rel_path(path))
+        path = to_rel_path(path)
     return os.path.join(TERRA_CONFIG["storage_dir"], path)
