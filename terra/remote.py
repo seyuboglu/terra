@@ -1,12 +1,12 @@
 import multiprocessing as mp
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime
 from logging import warn
 from typing import Collection, List, Tuple, Union
 
-import regex as re
 from tqdm import tqdm
 
 import terra.database as tdb
