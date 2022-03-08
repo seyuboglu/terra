@@ -32,6 +32,6 @@ setuptools.setup(
         "meerkat-ml",
         "pg8000",
         "google-cloud-storage",
-        "cloud-sql-python-connector[pg8000]",
+        "cloud-sql-python-connector[pg8000]==0.5.1",
     ],
 )

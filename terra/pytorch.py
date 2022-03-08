@@ -48,6 +48,8 @@ class TerraModule:
 
         Task.dump(
             {
+                "epoch": checkpoint["epoch"],
+                "global_step": checkpoint["global_step"],
                 "model": self,
                 "valid": self.valid_preds.compute(),
             },
