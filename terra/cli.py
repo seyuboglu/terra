@@ -1,6 +1,7 @@
 """
 """
 import importlib
+from multiprocessing.sharedctypes import Value
 import os
 import pydoc
 import shutil
@@ -222,6 +223,56 @@ def rm_artifacts(
                     shutil.rmtree(artifacts_dir)
                 except OSError as e:
                     print("Error: %s - %s." % (e.filename, e.strerror))
+
+
+@cli.command()
+@click.option(
+    "-g",
+    "--git_dir",
+    type=str,
+    help="Path to local git repository to be tracked.",
+    default=None,
+)
+@click.option("-s", "--storage_dir", type=str, help="Directory to store ", default=None)
+def init(git_dir: str, storage_dir: str):
+    if "TERRA_CONFIG_PATH" in os.environ:
+        print(
+            "'TERRA_CONFIG_PATH' environment variable already set."
+            "Skipping initialization."
+        )
+        #return
+
+    from terra.settings import TERRA_CONFIG
+
+    config = TERRA_CONFIG.copy()
+
+    if storage_dir is None:
+        storage_dir = os.path.join(os.getenv("HOME"), ".terra/default")
+        os.makedirs(storage_dir, exist_ok=True)
+    assert os.path.isdir(storage_dir)
+    config["storage_dir"] = storage_dir
+
+    if git_dir is None:
+        git_dir = os.getcwd()
+
+    if not os.path.exists(os.path.join(git_dir, ".git")):
+        raise ValueError(
+            "`git_dir` is not a git repository. Run `terra init` from a valid git "
+            "repository or pass a valid git repo to `--git_dir`."
+        )
+    config["git_dir"] = git_dir
+
+    config["local_db"] = True
+
+    conda_environment = os.environ.get("CONDA_DEFAULT_ENV", None)
+    if conda_environment is None or conda_environment == "base":
+        raise ValueError(
+            "Create and activate a conda environment before running `terra init`."
+        )
+
+    config_path = os.path.join(git_dir, "terra-config.json")
+    subprocess.call(["conda", f"env config vars set TERRA_CONFIG_PATH={config_path}"])
+    subprocess.call(["conda", "activate", conda_environment])
 
 
 @cli.command()

@@ -178,7 +178,7 @@ class TerraEncoder(json.JSONEncoder):
 
     def default(self, obj):
         if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
-            return {"__module__": obj.__module__, "__name__": obj.__name__}
+            return {"__module__": obj.__module__, "__name__": obj.__qualname__}
         elif isinstance(obj, Artifact):
             return obj.serialize()
         else:
@@ -198,7 +198,11 @@ class TerraDecoder(json.JSONDecoder):
         if "__module__" in dct and "__name__" in dct:
             try:
                 module = importlib.import_module(dct["__module__"])
-                return getattr(module, dct["__name__"])
+                name = dct["__name__"].split(".")
+                base = module
+                for element in name:
+                    base = getattr(base, element)
+                return base
             except ModuleNotFoundError:
                 # sometimes the names of modules, functions and classes change, we still
                 #  want to be able to load Task inputs and outputs that reference them

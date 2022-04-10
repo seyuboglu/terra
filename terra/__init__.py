@@ -31,7 +31,7 @@ class Task:
         no_load_args: Collection[str] = None,
     ):
         self.fn = fn
-        self.__name__ = fn.__name__
+        self.__name__ = fn.__qualname__
         self.__module__ = fn.__module__
         self.task_dir = self._get_task_dir(self)
         self.no_dump_args = no_dump_args
@@ -183,7 +183,12 @@ class Task:
         # `silence_task` instructs terra not to record the run
         silence_task = kwargs.pop("silence_task", False)
 
-        args_dict = getcallargs(self.fn, *args, **kwargs)
+        if isinstance(self.fn, type):
+            # pass in None for the ``self`` argument 
+            args_dict = getcallargs(self.fn, None, *args, **kwargs)
+            args_dict.pop("self")
+        else:
+            args_dict = getcallargs(self.fn, *args, **kwargs)
 
         if "kwargs" in args_dict:
             args_dict.update(args_dict.pop("kwargs"))
