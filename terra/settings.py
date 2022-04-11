@@ -4,6 +4,7 @@ import os
 TERRA_CONFIG = {
     "storage_dir": os.path.join(os.getenv("HOME"), ".terra/default"),
     "git_dir": None,
+    "default_package": None, 
     "local_db": True, 
     "cloud_sql_connection": None, 
     "user": None,

@@ -31,7 +31,8 @@ class Task:
         no_load_args: Collection[str] = None,
     ):
         self.fn = fn
-        self.__name__ = fn.__qualname__
+        self.__qualname__ = fn.__qualname__
+        self.__name__ = fn.__name__
         self.__module__ = fn.__module__
         self.task_dir = self._get_task_dir(self)
         self.no_dump_args = no_dump_args
@@ -50,7 +51,7 @@ class Task:
 
     @staticmethod
     def _get_task_dir(task: Task):
-        return _get_task_dir(task.__module__, task.__name__)
+        return _get_task_dir(task.__module__, task.__qualname__)
 
     def run_dir(self, run_id: int = None):
         if run_id is None:
@@ -64,7 +65,7 @@ class Task:
 
     def _get_latest_successful_run_id(self):
         return tdb.get_runs(
-            fns=self.__name__,
+            fns=self.__qualname__,
             modules=self.__module__,
             statuses="success",
             df=False,
@@ -162,7 +163,7 @@ class Task:
         rm_nested_artifacts(artifacts)
 
     def get_runs(self):
-        return tdb.get_runs(fns=self.__name__)
+        return tdb.get_runs(fns=self.__qualname__)
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -184,7 +185,7 @@ class Task:
         silence_task = kwargs.pop("silence_task", False)
 
         if isinstance(self.fn, type):
-            # pass in None for the ``self`` argument 
+            # pass in None for the ``self`` argument
             args_dict = getcallargs(self.fn, None, *args, **kwargs)
             args_dict.pop("self")
         else:
@@ -230,12 +231,12 @@ class Task:
             else:
                 input_hash = tdb.hash_inputs(encoded_inputs)
                 cache_run_id = tdb.check_input_hash(
-                    input_hash, fn=self.__name__, module=self.__module__
+                    input_hash, fn=self.__qualname__, module=self.__module__
                 )
                 if cache_run_id is not None:
                     # cache hit – return the output of the previous run
                     print(
-                        f"cache hit –> task: {self.fn.__name__}, run_id={cache_run_id}",
+                        f"cache hit –> task: {self.fn.__qualname__}, run_id={cache_run_id}",
                         flush=True,
                     )
                     out = self.out(run_id=cache_run_id)
@@ -252,8 +253,8 @@ class Task:
             "start_time": datetime.now(),
             "hostname": socket.gethostname(),
             "platform": platform.platform(),
-            "module": self.fn.__module__,
-            "fn": self.fn.__name__,
+            "module": self.__module__,
+            "fn": self.__qualname__,
             "python_version": sys.version,
             "slurm_job_id": os.environ.get("SLURM_JOB_ID", None),
         }
@@ -321,7 +322,7 @@ class Task:
 
             init_task_notifications(run_id=run_id)
 
-            print(f"task: {self.fn.__name__}, run_id={run_id}", flush=True)
+            print(f"task: {self.__qualname__}, run_id={run_id}", flush=True)
 
             if "run_dir" in args_dict:
                 args_dict["run_dir"] = to_abs_path(run_dir)
@@ -449,8 +450,14 @@ def get_meta(run_id: int = None):
 
 def _get_task_dir(module_name: str, fn_name: str):
     module = module_name.split(".")
-    if module[0] != "__main__":
-        module = module[1:]  # TODO: take full path for everything
+
+    # this is a hack for backwards compatibility with an older version of terra in
+    # which it was assumed that all tasks would come from the same base module
+    # (i.e. the one we were tracking with version control)
+    if (TERRA_CONFIG["default_package"] is not None) and module[0] == TERRA_CONFIG[
+        "default_package"
+    ]:
+        module = module[1:]
 
     task_dir = os.path.join(
         "tasks",
