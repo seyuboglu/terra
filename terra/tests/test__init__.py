@@ -1,11 +1,13 @@
 import json
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-
 import pytest
+
 import terra.database as tdb
 from terra import Task
+
 from .testbed import BaseTestBed
 
 
@@ -164,6 +166,8 @@ def test_run_table(testbed: BaseTestBed):
     def fn_a(x, run_dir=None):
         return {"a": np.ones(4) * x, "b": [np.ones(4) * 2 * x, np.ones(4) * 2 * x]}
 
+    print(fn_a.__qualname__)
+
     @Task
     def fn_c(x, run_dir=None):
         return x["a"] + x["b"][0] + x["b"][0]
@@ -174,7 +178,32 @@ def test_run_table(testbed: BaseTestBed):
     run_df = tdb.get_runs()
     assert len(run_df) == 2
     assert (run_df.status == "success").all()
-    assert set(run_df.fn) == set(["fn_a", "fn_c"])
+    assert set(run_df.fn) == set(
+        ["test_run_table.<locals>.fn_a", "test_run_table.<locals>.fn_c"]
+    )
+
+
+@dataclass
+class ConstructorClass:
+    x: int
+    y: int
+
+
+@BaseTestBed.parametrize()
+def test_constructor_task(testbed: BaseTestBed):
+    artifact = Task(ConstructorClass)(x=15, y=4)
+
+    obj = artifact.load()
+    assert isinstance(obj, ConstructorClass)
+    assert obj.x == 15
+    assert obj.y == 4
+
+    run_df = tdb.get_runs()
+    assert len(run_df) == 1
+    assert (run_df.status == "success").all()
+    print(ConstructorClass.__module__)
+    assert set(run_df.module) == set(["terra.tests.test__init__"])
+    assert set(run_df.fn) == set(["ConstructorClass"])
 
 
 @BaseTestBed.parametrize()
@@ -332,34 +361,3 @@ def test_failure(testbed: BaseTestBed):
     except ValueError:
         run = tdb.get_runs(run_ids=1, df=False)[0]
         assert run.status == "failure"
-
-
-# def test_parallel(tmpdir):
-#     TERRA_CONFIG["storage_dir"] = str(tmpdir)
-#     terra.database.Session = (
-#         tdb.get_session()
-#     )  # need to recreate Session with new tmpdir
-
-#     init_remote()
-
-#     @Task
-#     def fn_a(x, run_dir=None):
-#         return x
-
-#     obj_refs = []
-#     inps = list(range(1, 25))
-#     for x in inps:
-#         obj_refs.append(fn_a.remote(x, return_run_id=True, terra_config=TERRA_CONFIG))
-
-#     run_ids, artifacts = zip(*[ray.get(obj_ref) for obj_ref in obj_refs])
-
-#     # check that all inputs (inps) are returned, since (fn_a is identity)
-#     assert set(artifacts) == set(inps)
-
-#     # check that all inputs (inps) are returned, since (fn_a is identity)
-#     assert set([fn_a.out(run_id=run_id) for run_id in run_ids]) == set(inps)
-
-#     # check that we have a run_id for each input
-#     assert set([run.id for run in tdb.get_runs(df=False)]) == set(
-#         range(1, len(inps) + 1)
-#     )
