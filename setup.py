@@ -29,7 +29,7 @@ setuptools.setup(
         "sqlalchemy>=1.3",
         "click>=7.0.0",
         "torch>=1.0.0",
-        "meerkat-ml",
+        #"meerkat-ml",
         "pg8000",
         "google-cloud-storage",
         "cloud-sql-python-connector[pg8000]<=0.5.1",

@@ -3,10 +3,19 @@ import inspect
 import os
 import shutil
 import subprocess
+import __main__
 
 from terra.settings import TERRA_CONFIG
 from terra.utils import ensure_dir_exists, to_abs_path
 
+def to_rel_path_from_git(path: str) -> str:
+    """Convert absolute path to relative path from git root"""
+    git_dir = TERRA_CONFIG["git_dir"]
+    abspath = os.path.abspath(path)
+    if git_dir is None or not abspath.startswith(git_dir):
+        return abspath  
+
+    return os.path.relpath(path, git_dir)
 
 def _get_src_dump_path(run_dir, file_path):
     """Hash the directory to avoid replicating folder structure of the repo within
@@ -20,9 +29,18 @@ def _get_src_dump_path(run_dir, file_path):
 def log_fn_source(run_dir: str, fn: callable):
     src_dir = to_abs_path(os.path.join(run_dir, "src"))
     ensure_dir_exists(src_dir)
-    src_path = os.path.join(src_dir, "__main__.py")
+    src_path = os.path.join(src_dir, "__task_src__.py")
     with open(src_path, "w") as f:
         f.write(inspect.getsource(fn))
+
+def log_main_source(run_dir: str):
+    if not (hasattr(__main__, "__file__") and os.path.exists(__main__.__file__)):
+        return 
+    src_dir = to_abs_path(os.path.join(run_dir, "src"))
+    ensure_dir_exists(src_dir)
+    src_path = os.path.join(src_dir, "__main_src__.py")
+    
+    shutil.copy(__main__.__file__, src_path)
 
 
 git_status = None

@@ -9,10 +9,11 @@ import traceback
 from datetime import datetime
 from inspect import getcallargs
 from typing import Collection
+import __main__
 
 import terra.database as tdb
 from terra.dependencies import get_dependencies
-from terra.git import log_fn_source, log_git_status
+from terra.git import log_fn_source, log_git_status, log_main_source, to_rel_path_from_git
 from terra.logging import init_logging
 from terra.notify import (
     init_task_notifications,
@@ -33,7 +34,11 @@ class Task:
         self.fn = fn
         self.__qualname__ = fn.__qualname__
         self.__name__ = fn.__name__
-        self.__module__ = fn.__module__
+        if fn.__module__ == "__main__" and hasattr(__main__, "__file__"):
+            self.__module__ = to_rel_path_from_git(__main__.__file__)
+        else:
+            self.__module__ = fn.__module__
+
         self.task_dir = self._get_task_dir(self)
         self.no_dump_args = no_dump_args
         self.no_load_args = no_load_args
@@ -163,7 +168,7 @@ class Task:
         rm_nested_artifacts(artifacts)
 
     def get_runs(self):
-        return tdb.get_runs(fns=self.__qualname__)
+        return tdb.get_runs(fns=self.__qualname__, modules=self.__module__)
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -281,11 +286,12 @@ class Task:
 
             run.git_commit = git_status["commit_hash"]
             run.git_dirty = len(git_status["dirty"]) > 0
-            if self.fn.__module__ == "__main__":
-                try:
-                    log_fn_source(run_dir=run_dir, fn=self.fn)
-                except OSError:
-                    print("Could not log source code.")
+
+            try:
+                log_fn_source(run_dir=run_dir, fn=self.fn)
+                log_main_source(run_dir=run_dir)
+            except OSError:
+                print("Could not log source code.")
 
             tdb.safe_commit(session)
 
@@ -298,6 +304,9 @@ class Task:
                     ),
                     "dependencies": get_dependencies(),
                     "terra_config": TERRA_CONFIG,
+                    "__main__.__file__": __main__.__file__
+                    if hasattr(__main__, "__file__")
+                    else None,
                 }
             )
             json_dump(
@@ -447,9 +456,21 @@ def get_meta(run_id: int = None):
     meta = json_load(to_abs_path(os.path.join(run_dir, "meta.json")))
     return meta
 
+def import_file(path: str):
+    import importlib.util
+    rel_path = to_rel_path_from_git(path)
+    spec = importlib.util.spec_from_file_location(rel_path, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module 
 
 def _get_task_dir(module_name: str, fn_name: str):
-    module = module_name.split(".")
+    if "/" in module_name:
+        # remove extension from module_name in the case where it is a file path
+        module = os.path.splitext(module_name)[:1]
+    else:
+        # otherwise split on the period 
+        module = module_name.split(".")
 
     # this is a hack for backwards compatibility with an older version of terra in
     # which it was assumed that all tasks would come from the same base module
