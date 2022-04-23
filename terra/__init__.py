@@ -13,7 +13,13 @@ import __main__
 
 import terra.database as tdb
 from terra.dependencies import get_dependencies
-from terra.git import log_fn_source, log_git_status, log_main_source, to_rel_path_from_git
+from terra.git import (
+    _log_src,
+    _get_src,
+    log_git_status,
+    _log_main_src,
+    to_rel_path_from_git,
+)
 from terra.logging import init_logging
 from terra.notify import (
     init_task_notifications,
@@ -137,6 +143,12 @@ class Task:
 
         with open(log_path, mode="r") as f:
             return f.read()
+
+    def get_src(self, run_id: int = None):
+        if run_id is None:
+            run_id = _get_latest_run_id(self.task_dir)
+        run_dir = _get_run_dir(task_dir=self.task_dir, idx=run_id)
+        return _get_src(run_dir)
 
     def get_meta(self, run_id: int = None):
         from terra.io import json_load
@@ -288,8 +300,8 @@ class Task:
             run.git_dirty = len(git_status["dirty"]) > 0
 
             try:
-                log_fn_source(run_dir=run_dir, fn=self.fn)
-                log_main_source(run_dir=run_dir)
+                _log_src(run_dir=run_dir, fn=self.fn)
+                _log_main_src(run_dir=run_dir)
             except OSError:
                 print("Could not log source code.")
 
@@ -447,6 +459,10 @@ def get_log(run_id: int):
     with open(log_path, mode="r") as f:
         return f.read()
 
+def get_src(run_id: int):
+    run_dir = get_run_dir(run_id)
+    return _get_src(run_dir=run_dir)
+
 
 def get_meta(run_id: int = None):
     from terra.io import json_load
@@ -456,20 +472,23 @@ def get_meta(run_id: int = None):
     meta = json_load(to_abs_path(os.path.join(run_dir, "meta.json")))
     return meta
 
+
 def import_file(path: str):
     import importlib.util
+
     rel_path = to_rel_path_from_git(path)
     spec = importlib.util.spec_from_file_location(rel_path, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module 
+    return module
+
 
 def _get_task_dir(module_name: str, fn_name: str):
     if "/" in module_name:
         # remove extension from module_name in the case where it is a file path
         module = os.path.splitext(module_name)[:1]
     else:
-        # otherwise split on the period 
+        # otherwise split on the period
         module = module_name.split(".")
 
     # this is a hack for backwards compatibility with an older version of terra in

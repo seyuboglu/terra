@@ -26,14 +26,25 @@ def _get_src_dump_path(run_dir, file_path):
     return dump_path
 
 
-def log_fn_source(run_dir: str, fn: callable):
+def _log_src(run_dir: str, fn: callable):
     src_dir = to_abs_path(os.path.join(run_dir, "src"))
     ensure_dir_exists(src_dir)
     src_path = os.path.join(src_dir, "__task_src__.py")
     with open(src_path, "w") as f:
         f.write(inspect.getsource(fn))
+    
+def _get_src(run_dir: str):
+    run_dir = to_abs_path(run_dir)
+    log_path = os.path.join(
+            run_dir,
+            "src",
+            "__task_src__.py",
+    )
 
-def log_main_source(run_dir: str):
+    with open(log_path, mode="r") as f:
+        return f.read()
+
+def _log_main_src(run_dir: str):
     if not (hasattr(__main__, "__file__") and os.path.exists(__main__.__file__)):
         return 
     src_dir = to_abs_path(os.path.join(run_dir, "src"))
@@ -41,6 +52,7 @@ def log_main_source(run_dir: str):
     src_path = os.path.join(src_dir, "__main_src__.py")
     
     shutil.copy(__main__.__file__, src_path)
+
 
 
 git_status = None
