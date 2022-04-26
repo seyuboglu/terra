@@ -152,7 +152,7 @@ def rm_nested_artifacts(obj: Union[list, dict]):
         obj.rm()
 
 
-def json_dump(obj: Union[dict, list], path: str, run_dir: str):
+def json_dump(obj: Union[dict, list], path: str, run_dir: str = None):
     with open(path, "w") as f:
         encoder = TerraEncoder(run_dir=run_dir, indent=4)
         encoded = encoder.encode(obj)

@@ -20,6 +20,7 @@ from terra.git import (
     _log_main_src,
     to_rel_path_from_git,
 )
+from terra.io import TerraDecoder, TerraEncoder
 from terra.logging import init_logging
 from terra.notify import (
     init_task_notifications,
@@ -36,6 +37,7 @@ class Task:
         fn: callable,
         no_dump_args: Collection[str] = None,
         no_load_args: Collection[str] = None,
+        cache_ignored_args: Collection[str] = None,
     ):
         self.fn = fn
         self.__qualname__ = fn.__qualname__
@@ -48,15 +50,17 @@ class Task:
         self.task_dir = self._get_task_dir(self)
         self.no_dump_args = no_dump_args
         self.no_load_args = no_load_args
+        self.cache_ignored_args = cache_ignored_args if cache_ignored_args is not None else []
 
     @classmethod
     def make(
         cls,
         no_dump_args: Collection[str] = None,
         no_load_args: Collection[str] = None,
+        cache_ignored_args: Collection[str] = None,
     ) -> callable:
         def _make(fn: callable) -> Task:
-            return cls(fn=fn, no_dump_args=no_dump_args, no_load_args=no_load_args)
+            return cls(fn=fn, no_dump_args=no_dump_args, no_load_args=no_load_args, cache_ignored_args=cache_ignored_args)
 
         return _make
 
@@ -246,7 +250,7 @@ class Task:
             except TerraEncodingError:
                 encoded_inputs = None
             else:
-                input_hash = tdb.hash_inputs(encoded_inputs)
+                input_hash = self._hash_inputs(encoded_inputs)
                 cache_run_id = tdb.check_input_hash(
                     input_hash, fn=self.__qualname__, module=self.__module__
                 )
@@ -335,7 +339,7 @@ class Task:
                     # and getthe input hash
                     encoder = TerraEncoder(indent=4, run_dir=run_dir)
                     encoded_inputs = encoder.encode(args_to_dump)
-                    input_hash = tdb.hash_inputs(encoded_inputs)
+                    input_hash = self._hash_inputs(encoded_inputs)
 
                 f.write(encoded_inputs)
 
@@ -420,6 +424,14 @@ class Task:
                 raise ValueError(f"Artifact group '{group_name}' already exists.")
 
         json_dump(artifacts, path, run_dir=run_dir)
+    
+    def _hash_inputs(self, encoded_inputs: str):
+        if self.cache_ignored_args is not None:
+            # TODO: this is hacky, we should avoid having to decode and encode again
+            inputs = TerraDecoder().decode(encoded_inputs)
+            encoded_inputs = TerraEncoder().encode({k: v for k,v in inputs.items() if k not in self.cache_ignored_args})
+
+        return tdb.hash_inputs(encoded_inputs)
 
 
 def get_run_dir(run_id: int):
