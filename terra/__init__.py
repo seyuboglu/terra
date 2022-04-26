@@ -242,6 +242,10 @@ class Task:
                 for k, v in args_dict.items()
             }
         )
+
+        if TERRA_CONFIG["sort_args_before_hash"]:
+            args_to_dump = dict(sorted(args_to_dump.items()))
+            
         # check cache for previous run
         if not skip_terra_cache:
             try:

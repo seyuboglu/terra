@@ -10,7 +10,8 @@ TERRA_CONFIG = {
     "user": None,
     "password": None,
     "db": None,
-    "repo_name": None
+    "repo_name": None,
+    "sort_args_before_hash": True
 }
 
 if "TERRA_CONFIG_PATH" in os.environ:
