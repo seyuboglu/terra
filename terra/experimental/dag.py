@@ -29,7 +29,6 @@ def provenance(run_id: int, pull_missing_runs: bool = False):
     artifacts = {}
     runs = {}
     edges = []
-    print(pull_missing_runs)
     _get_provenance(
         run_id=run_id,
         artifacts=artifacts,
