@@ -1,3 +1,4 @@
+import dataclasses
 import importlib
 import json
 import os
@@ -119,6 +120,8 @@ def load_nested_artifacts(obj: Union[list, dict], run_id: int = None):
         return tuple(load_nested_artifacts(v, run_id=run_id) for v in obj)
     elif isinstance(obj, dict):
         return {k: load_nested_artifacts(v, run_id=run_id) for k, v in obj.items()}
+    elif _is_supported_dataclass(obj):
+        return obj.__class__(**load_nested_artifacts(obj.__dict__, run_id=run_id))
     elif isinstance(obj, Artifact):
         return obj.load(run_id=run_id)
     else:
@@ -136,6 +139,8 @@ def get_nested_artifact_paths(obj: Union[list, dict]):
         for v in obj.values():
             arts.extend(get_nested_artifact_paths(v))
         return arts
+    elif _is_supported_dataclass(obj):
+        return get_nested_artifact_paths(obj.__dict__)
     elif isinstance(obj, Artifact):
         return [obj._get_path()]
     return []
@@ -148,6 +153,8 @@ def rm_nested_artifacts(obj: Union[list, dict]):
         (rm_nested_artifacts(v) for v in obj)
     elif isinstance(obj, dict):
         {k: rm_nested_artifacts(v) for k, v in obj.items()}
+    elif _is_supported_dataclass(obj):
+        rm_nested_artifacts(obj.__dict__)
     elif isinstance(obj, Artifact):
         obj.rm()
 
@@ -179,6 +186,15 @@ class TerraEncoder(json.JSONEncoder):
     def default(self, obj):
         if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
             return {"__module__": obj.__module__, "__name__": obj.__qualname__}
+        elif _is_supported_dataclass(obj):
+            # support for frozen dataclasses only
+
+            return {
+                "__dataclass__": type(obj),
+                # convert to dict without deepcopy performed by
+                # TODO: 
+                "__dict__": obj.__dict__
+            }
         elif isinstance(obj, Artifact):
             return obj.serialize()
         else:
@@ -186,6 +202,7 @@ class TerraEncoder(json.JSONEncoder):
                 raise TerraEncodingError(
                     "Data includes object to be turned to artifact. Must pass run_dir."
                 )
+
             artifact = Artifact.dump(value=obj, run_dir=self.run_dir)
             return artifact.serialize()
 
@@ -212,9 +229,15 @@ class TerraDecoder(json.JSONDecoder):
 
                 return ExtinctModule
 
+        if "__dataclass__" in dct and "__dict__" in dct:
+            return dct["__dataclass__"](**dct["__dict__"])
+
         if Artifact.is_serialized_artifact(dct):
             return Artifact.deserialize(dct)
         return dct
+
+def _is_supported_dataclass(obj):
+    return dataclasses.is_dataclass(obj) and obj.__dataclass_params__.frozen
 
 
 reader_registry = {}

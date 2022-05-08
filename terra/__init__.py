@@ -20,7 +20,7 @@ from terra.git import (
     _log_main_src,
     to_rel_path_from_git,
 )
-from terra.io import TerraDecoder, TerraEncoder
+from terra.io import TerraDecoder, TerraEncoder, load_nested_artifacts
 from terra.logging import init_logging
 from terra.notify import (
     init_task_notifications,
@@ -355,6 +355,9 @@ class Task:
 
             if "run_dir" in args_dict:
                 args_dict["run_dir"] = to_abs_path(run_dir)
+            
+            if "run_id" in args_dict:
+                args_dict["run_id"] = run_id
 
             # load node inputs
             if self.no_load_args is not None:
@@ -488,6 +491,9 @@ def get_meta(run_id: int = None):
     meta = json_load(to_abs_path(os.path.join(run_dir, "meta.json")))
     return meta
 
+def load(obj, run_id: int=None):
+    from terra.io import load_nested_artifacts
+    return load_nested_artifacts(obj, run_id=run_id)
 
 def import_file(path: str):
     import importlib.util
