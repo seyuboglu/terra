@@ -7,6 +7,7 @@ import shutil
 import uuid
 from functools import lru_cache
 from typing import Union
+import warnings
 
 import meerkat as mk
 import numpy as np
@@ -187,13 +188,23 @@ class TerraEncoder(json.JSONEncoder):
         if (callable(obj) or isinstance(obj, type)) and hasattr(obj, "__name__"):
             return {"__module__": obj.__module__, "__name__": obj.__qualname__}
         elif _is_supported_dataclass(obj):
-            # support for frozen dataclasses only
+            # check if dataclass has any properties not in constructor
+            field_names = set(field.name for field in dataclasses.fields(obj))
+            dct = obj.__dict__
+            dct_keys = set(dct.keys())
+            if field_names != dct_keys:
+                # warn if dataclass has new properties 
+                warnings.warn(
+                    f"{obj.__class__.__name__} object has properties "
+                    f"{dct_keys - field_names} not part of the dataclass. These will "
+                    f"not be serialized by terra. {self.run_dir}"
+                )
+                dct = {k: v for k, v in dct.items() if k in field_names}
 
             return {
                 "__dataclass__": type(obj),
-                # convert to dict without deepcopy performed by
-                # TODO: 
-                "__dict__": obj.__dict__
+                # convert to dict without deepcopy performed by dataclasses.asdict
+                "__dict__": dct
             }
         elif isinstance(obj, Artifact):
             return obj.serialize()
@@ -237,7 +248,7 @@ class TerraDecoder(json.JSONDecoder):
         return dct
 
 def _is_supported_dataclass(obj):
-    return dataclasses.is_dataclass(obj) and obj.__dataclass_params__.frozen
+    return dataclasses.is_dataclass(obj) #and obj.__dataclass_params__.frozen
 
 
 reader_registry = {}
