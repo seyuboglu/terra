@@ -20,7 +20,6 @@ from terra.git import (
     _log_main_src,
     to_rel_path_from_git,
 )
-from terra.io import TerraDecoder, TerraEncoder, load_nested_artifacts
 from terra.logging import init_logging
 from terra.notify import (
     init_task_notifications,
@@ -434,6 +433,7 @@ class Task:
     
     def _hash_inputs(self, encoded_inputs: str):
         if self.cache_ignored_args is not None:
+            from terra.io import TerraDecoder, TerraEncoder, load_nested_artifacts
             # TODO: this is hacky, we should avoid having to decode and encode again
             inputs = TerraDecoder().decode(encoded_inputs)
             encoded_inputs = TerraEncoder().encode({k: v for k,v in inputs.items() if k not in self.cache_ignored_args})

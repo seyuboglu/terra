@@ -51,3 +51,13 @@ def to_abs_path(path: str):
         # if the abs path is on a different machine normalize it to this machine
         path = to_rel_path(path)
     return os.path.join(TERRA_CONFIG["storage_dir"], path)
+
+def bytes_fmt(num, suffix="B"):
+    """
+    Source: https://stackoverflow.com/questions/1094841/get-human-readable-version-of-file-size
+    """
+    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Yi{suffix}"

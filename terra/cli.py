@@ -14,8 +14,9 @@ import click
 
 import terra.database as tdb
 from terra import Task, _get_task_dir
-from terra.settings import TERRA_CONFIG
-from terra.utils import ensure_dir_exists
+from terra.settings import TERRA_CONFIG, config_path
+from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
+
 
 
 @click.group()
@@ -54,6 +55,13 @@ def cli(
             datetime.strptime(start_date, date_format),
             datetime.strptime(end_date, date_format),
         )
+
+
+@cli.command()
+def config():
+    import json
+    print(f"config path: {config_path}")
+    print(json.dumps(TERRA_CONFIG, indent=4))
 
 
 @cli.command()
@@ -149,15 +157,82 @@ def rm_local(ctx, num_workers: int, exclude_run_ids: str):
     else:
         [_rm_dir(run_dir) for run_dir in tqdm(run_dirs)]
 
-
+    
 @cli.command()
-def du():
+@click.option("--force", "-f",  is_flag=True, default=False)
+@click.option("--interactive", "-i", is_flag=True, default=False)
+@click.pass_context
+def du(ctx, force: bool, interactive: bool):
     from terra.settings import TERRA_CONFIG
+    from tqdm import tqdm
+    import pandas as pd 
 
-    working_dir = os.getcwd()
-    os.chdir(TERRA_CONFIG["storage_dir"])
-    subprocess.call(["du", "-sh", "--", os.path.join(TERRA_CONFIG["storage_dir"])])
-    os.chdir(working_dir)
+    SCHEMA = ["id", "size_bytes", "local"]
+
+    du_dir = os.path.join(TERRA_CONFIG["storage_dir"], "du")
+    os.makedirs(du_dir, exist_ok=True)
+
+    run_df = tdb.get_runs(**ctx.obj, df=True)
+
+    cache_path = os.path.join(du_dir, "du_cache.csv")
+    if os.path.exists(cache_path):
+        cache_df = pd.read_csv(cache_path)
+        assert set(SCHEMA) == set(cache_df.columns)
+    else:
+        cache_df = pd.DataFrame(columns=SCHEMA)
+
+    if force:
+        todo_df = run_df
+        rows = []
+        print(f"Skipping cache.")
+    else:
+        todo_df = run_df[~run_df["id"].isin(cache_df["id"])]
+        rows = cache_df[cache_df["id"].isin(run_df["id"])].to_dict("records")
+        print(f"{len(rows)}/{len(run_df)} runs cached")
+
+    if len(todo_df) > 0:
+        print("Running `du` for {} runs".format(len(todo_df)))
+        for _, run in tqdm(todo_df.iterrows(), total=len(todo_df)):
+            row = {
+                "id": run["id"],
+                "local": True
+            }
+            run_dir = to_abs_path(run["run_dir"])
+            if not os.path.exists(run_dir):
+                row["local"] = False
+                row["size"] = 0
+                continue 
+            
+            # get size of directory using du 
+            out = subprocess.check_output(["du", "-s", run_dir])
+            size_bytes = int(out.decode("utf-8").split("\t")[0])
+            row["size_bytes"] = size_bytes
+            rows.append(row)
+    
+    df = pd.DataFrame(rows)
+    
+    # need to make sure we don't write duplicate runs to the cache 
+    new_cache_df = pd.concat([df, cache_df[~cache_df["id"].isin(df["id"])]], axis=0)
+    assert new_cache_df["id"].is_unique
+    new_cache_df.to_csv(cache_path, index=False)
+
+    df = df.merge(run_df, on="id")
+
+
+    print(
+        "\n"
+        "SUMMARY (use -i to interact with full results)\n"
+        "----------------------------------------------\n"
+        f"total size: {bytes_fmt(df['size_bytes'].sum())}\n"
+        f"average size: {bytes_fmt(df['size_bytes'].mean())}\n"
+        f"# of runs: {len(df)}\n"
+        f"# of local runs: {df['local'].sum()}\n"
+    )
+
+    if interactive:
+        import code
+        code.interact(banner="Run sizes are stored in the `df` variable:", local=locals())
+
 
 
 @cli.command()
@@ -382,15 +457,3 @@ def _write_slurm_sh(sh_path, slurm_config, module, fn):
     subprocess.call(["chmod", "+rx", sh_path])
 
 
-@cli.command()
-@click.argument("module", type=str)
-@click.argument("fn", type=str)
-def config(module: str, fn: str):
-    task_dir = _get_task_dir(module_name=module, fn_name=fn)
-
-    config_path = os.path.join(task_dir, "config.py")
-
-    if not os.path.exists(config_path):
-        _write_config_skeleton(config_path, module, fn)
-
-    print(f"config path: {config_path}")

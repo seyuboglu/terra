@@ -19,7 +19,8 @@ if "TERRA_CONFIG_PATH" in os.environ:
     with open(config_path) as f:
         config = json.load(f)
     TERRA_CONFIG.update(config)
-
+else:
+    config_path = None
 
 class TerraDatabaseSettings:
     num_commit_retries: int = 10
