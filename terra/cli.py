@@ -26,7 +26,6 @@ from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
 @click.option("--run_ids", "-r", type=str, default=None)
 @click.option("--start_date", type=str, default=None)
 @click.option("--end_date", type=str, default=None)
-@click.option("--limit", type=int, default=1_000)
 @click.pass_context
 def cli(
     ctx,
@@ -36,13 +35,11 @@ def cli(
     status: str,
     start_date: str,
     end_date: str,
-    limit: int,
 ):
     ctx.ensure_object(dict)
     ctx.obj["modules"] = module
     ctx.obj["fns"] = fn
     ctx.obj["statuses"] = status
-    ctx.obj["limit"] = limit
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
@@ -85,11 +82,12 @@ def pull(ctx, bucket_name: str):
 
 
 @cli.command()
+@click.option("--limit", type=int, default=1_000)
 @click.pass_context
-def ls(ctx):
+def ls(ctx, limit: int):
     import pandas as pd
 
-    runs = tdb.get_runs(**ctx.obj, df=False)
+    runs = tdb.get_runs(**ctx.obj, limit=limit, df=False)
 
     if len(runs) == 0:
         print("Query returned no tasks.")
@@ -188,29 +186,30 @@ def du(ctx, force: bool, interactive: bool):
     else:
         todo_df = run_df[~run_df["id"].isin(cache_df["id"])]
         rows = cache_df[cache_df["id"].isin(run_df["id"])].to_dict("records")
-        print(f"{len(rows)}/{len(run_df)} runs cached")
+        print(f"{len(rows)}/{len(run_df)} runs cached (use -f to skip cache)")
 
     if len(todo_df) > 0:
         print("Running `du` for {} runs".format(len(todo_df)))
         for _, run in tqdm(todo_df.iterrows(), total=len(todo_df)):
-            row = {
-                "id": run["id"],
-                "local": True
-            }
-            run_dir = to_abs_path(run["run_dir"])
-            if not os.path.exists(run_dir):
-                row["local"] = False
-                row["size"] = 0
-                continue 
+            row = {"id": run["id"]}
             
-            # get size of directory using du 
-            out = subprocess.check_output(["du", "-s", run_dir])
-            size_bytes = int(out.decode("utf-8").split("\t")[0])
-            row["size_bytes"] = size_bytes
+            if run["run_dir"] is None:
+                run_dir = None 
+            else:
+                run_dir = to_abs_path(run["run_dir"])
+            if run_dir is None or not os.path.exists(run_dir):
+                row["local"] = False
+                row["size_bytes"] = 0
+            else:   
+                # get size of directory using du 
+                out = subprocess.check_output(["du", "-s", run_dir])
+                size_bytes = int(out.decode("utf-8").split("\t")[0])
+                row["size_bytes"] = size_bytes  
+                row["local"] = True
             rows.append(row)
     
     df = pd.DataFrame(rows)
-    
+
     # need to make sure we don't write duplicate runs to the cache 
     new_cache_df = pd.concat([df, cache_df[~cache_df["id"].isin(df["id"])]], axis=0)
     assert new_cache_df["id"].is_unique

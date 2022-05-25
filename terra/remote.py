@@ -118,7 +118,7 @@ def push(
             )
             async_results.append(result)
         else:
-            print(f'Pushing run_id={run.id} to bucket "{bucket_name}" at "{rel_path}".')
+            print(f'Pushing run_id={run.id} to bucket "{bucket_name}" at "{abs_path}".')
             _upload_dir_to_gcs(
                 local_path=abs_path,
                 bucket_name=bucket_name,
@@ -170,7 +170,7 @@ def pull(
             continue
 
         print(
-            f'Pulling run_id={run.id} from bucket "{bucket_name} at path "{rel_path}".'
+            f'Pulling run_id={run.id} from bucket "{bucket_name} at path "{abs_path}".'
         )
         try:
             _download_dir_from_gcs(
