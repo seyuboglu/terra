@@ -103,6 +103,7 @@ def get_runs(
     fns: Union[str, List[str]] = None,
     statuses: Union[str, List[str]] = None,
     date_range: Tuple[datetime] = None,
+    pushed: bool = None,
     limit: int = None,
     df: bool = True,
 ) -> List[Run]:
@@ -128,6 +129,14 @@ def get_runs(
     if date_range is not None:
         query = query.filter(Run.start_time > date_range[0])
         query = query.filter(Run.start_time < date_range[1])
+    
+    if pushed is not None:
+        from terra.remote import _get_pushed_run_ids
+        pushed_run_ids = _get_pushed_run_ids(TERRA_CONFIG["repo_name"])
+        if pushed:
+            query = query.filter(Run.id.in_(list(pushed_run_ids)[:30_000]))
+        else:
+            query = query.filter(~Run.id.in_(pushed_run_ids))
 
     query = query.order_by(desc(Run.start_time))
     if limit is not None:

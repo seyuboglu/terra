@@ -26,6 +26,7 @@ from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
 @click.option("--run_ids", "-r", type=str, default=None)
 @click.option("--start_date", type=str, default=None)
 @click.option("--end_date", type=str, default=None)
+@click.option("--pushed", type=bool, default=None)
 @click.pass_context
 def cli(
     ctx,
@@ -35,14 +36,17 @@ def cli(
     status: str,
     start_date: str,
     end_date: str,
+    pushed: str  
 ):
     ctx.ensure_object(dict)
     ctx.obj["modules"] = module
     ctx.obj["fns"] = fn
     ctx.obj["statuses"] = status
+    ctx.obj["pushed"] = pushed
 
     if run_ids is not None:
         run_ids = map(int, run_ids.split(","))
+
     ctx.obj["run_ids"] = run_ids
 
     ctx.obj["date_range"] = None
