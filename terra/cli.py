@@ -116,6 +116,7 @@ def ls(ctx, limit: int):
 
 
 def _rm_dir(run_dir):
+    run_dir = to_abs_path(run_dir) 
     if run_dir is None:
         return
     try:
@@ -135,7 +136,7 @@ def rm_local(ctx, num_workers: int, exclude_run_ids: str):
     runs = tdb.get_runs(**ctx.obj, df=False)
 
     if not click.confirm(
-        "Do you want to remove artifacts for the run_ids you just queried?"
+        "Do you want to remove the directories for the run_ids you just queried?"
     ):
         print("aborted")
         return
