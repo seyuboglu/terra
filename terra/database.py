@@ -1,8 +1,10 @@
+import contextlib
+from genericpath import exists
 import hashlib
 import os
 from datetime import datetime
 from time import sleep
-from typing import List, Tuple, Union
+from typing import TYPE_CHECKING, List, Tuple, Union, Dict
 
 import sqlalchemy
 from sqlalchemy import (
@@ -12,18 +14,27 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Float,
     desc,
     select,
+    literal,
+    union_all,
+    cast,
+    Table,
+    exists
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
+from torch import chunk
 
 from terra.settings import TERRA_CONFIG, TerraDatabaseSettings
 from terra.utils import ensure_dir_exists
 
-Base = declarative_base()
+if TYPE_CHECKING:
+    import pandas as pd
 
+Base = declarative_base()
 
 class Run(Base):
     __tablename__ = "runs"
@@ -132,11 +143,21 @@ def get_runs(
     
     if pushed is not None:
         from terra.remote import _get_pushed_run_ids
+        import pandas as pd 
         pushed_run_ids = _get_pushed_run_ids(TERRA_CONFIG["repo_name"])
+        temp_table = temp_table_from_pandas(
+            pd.DataFrame([{"id": id} for id in pushed_run_ids]),
+            session=session
+        )
+
+        stmt = exists().where(temp_table.c.id == Run.id)
         if pushed:
-            query = query.filter(Run.id.in_(list(pushed_run_ids)[:30_000]))
+            query = query.filter(stmt)
         else:
-            query = query.filter(~Run.id.in_(pushed_run_ids))
+            query = query.filter(~stmt)
+    else:
+        temp_table = None
+        
 
     query = query.order_by(desc(Run.start_time))
     if limit is not None:
@@ -147,7 +168,7 @@ def get_runs(
         out = read_sql(query.statement, query.session.bind)
     else:
         out = query.all()
-
+    
     session.close()
     return out
 
@@ -348,3 +369,66 @@ def migrate_local_db_to_cloud(
                     conn_cloud.execute(
                         table.insert().values(data[start_idx : start_idx + batch_size])
                     )
+
+def subquery_from_records(records: List[Dict], name: str="temp"):
+    # source: https://stackoverflow.com/questions/44140632/use-temp-table-with-sqlalchemy
+    assert name not in ["runs", "artifact_dumps", "artifact_loads", "refs"]
+
+    stmts = [
+        select([literal(v).label(k) for k, v in row.items()])
+        if idx == 0 else
+        select([literal(v) for v in row.values()]) # no cast on subsequent rowas
+        for idx, row in enumerate(records)
+    ]
+
+    subquery = union_all(*stmts)
+    subquery = subquery.cte(name=name)
+    return subquery
+
+
+def temp_table_from_pandas(df: "pd.DataFrame", session=None, name: str="temp"):
+    if session is None:
+        session = Session()
+    import pandas as pd
+    type_to_sql_type = {
+        pd.StringDtype: String, 
+        pd.Int64Dtype: Integer, 
+        pd.Int32Dtype: Integer,
+        pd.Int16Dtype: Integer,
+        pd.Int8Dtype: Integer,
+        pd.Float64Dtype: Float,
+        pd.Float32Dtype: Float,
+        pd.BooleanDtype: Boolean,
+        pd.DatetimeTZDtype: DateTime,
+        pd.CategoricalDtype: String,
+    }
+    name = f'{name}#temp_table'
+    columns = [Column(c, _pandas_type_to_sqlalchemy_type(t)) for c, t in df.dtypes.items()]
+    temp_table = Table(
+        name,
+        Base.metadata,
+        *columns,
+        prefixes=['TEMPORARY'],
+    )
+    temp_table.create(session.bind)
+    num_rows = df.to_sql(
+        name=name, 
+        con=session.bind,
+        if_exists="append",
+        method="multi", # https://stackoverflow.com/questions/29706278/python-pandas-to-sql-with-sqlalchemy-how-to-speed-up-exporting-to-ms-sql
+        chunksize=10_000,
+        index=False
+    )
+
+    return temp_table
+    
+def _pandas_type_to_sqlalchemy_type(pd_type):
+    import pandas as pd
+    import numpy as np
+    if pd.StringDtype == pd_type:
+        return String
+    elif np.dtype(int) == pd_type:
+        return Integer
+    elif np.dtype(float) == pd_type:
+        return Float
+    return String 
