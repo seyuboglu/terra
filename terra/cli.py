@@ -69,11 +69,12 @@ def config():
 @click.option("--bucket_name", "-b", type=str, default=None)
 @click.option("--force", "-f", is_flag=True, default=False)
 @click.option("--num_workers", type=int, default=0)
+@click.option("--warn_missing", "-w", is_flag=True, default=False)
 @click.pass_context
-def push(ctx, bucket_name: str, force: bool, num_workers: int):
+def push(ctx, bucket_name: str, force: bool, num_workers: int, warn_missing: bool):
     from terra.remote import push
 
-    push(**ctx.obj, bucket_name=bucket_name, force=force, num_workers=num_workers)
+    push(**ctx.obj, bucket_name=bucket_name, force=force, num_workers=num_workers, warn_missing=warn_missing)
 
 
 @cli.command()
@@ -150,7 +151,7 @@ def rm_local(ctx, num_workers: int, exclude_run_ids: str):
         run_dirs = [run.run_dir for run in runs if run.id not in exclude_run_ids]
         print(len(run_dirs))
     else:
-        run_dirs = [run.run_dir for run in runs]
+        run_dirs = [run.run_dir for run in runs if run.run_dir is not None]
 
     if num_workers > 0:
         pool = Pool(processes=8)
