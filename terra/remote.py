@@ -77,9 +77,11 @@ def push(
     fns: Union[str, List[str]] = None,
     statuses: Union[str, List[str]] = None,
     date_range: Tuple[datetime] = None,
+    pushed: bool = None,
     limit: int = None,
     bucket_name: str = None,
     force: bool = False,
+    warn_missing: bool = False, 
     num_workers: bool = 0,
 ):
     if bucket_name is None:
@@ -98,6 +100,7 @@ def push(
         fns=fns,
         statuses=statuses,
         date_range=date_range,
+        pushed=pushed,
         limit=limit,
         df=False,
     )
@@ -126,10 +129,16 @@ def push(
         abs_path = to_abs_path(run.run_dir)
 
         if not os.path.isdir(abs_path):
-            raise ValueError(
+            msg = (
                 f"Cannot push run_id={run.id}, it is not stored on this remote."
                 f" Try pushing from host '{run.hostname}'."
             )
+            if warn_missing:
+                warn(msg)
+                continue 
+            else:
+                raise ValueError(msg)
+            
 
         if num_workers > 0:
             result = pool.apply_async(
