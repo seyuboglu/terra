@@ -13,10 +13,9 @@ from multiprocessing import Pool
 import click
 
 import terra.database as tdb
-from terra import Task, _get_task_dir
+from terra import Task, load
 from terra.settings import TERRA_CONFIG, config_path
 from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
-
 
 
 @click.group()
@@ -27,6 +26,7 @@ from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
 @click.option("--start_date", type=str, default=None)
 @click.option("--end_date", type=str, default=None)
 @click.option("--pushed", type=bool, default=None)
+@click.option("--json", "-j", type=str, default=None)
 @click.pass_context
 def cli(
     ctx,
@@ -36,31 +36,41 @@ def cli(
     status: str,
     start_date: str,
     end_date: str,
-    pushed: str  
+    pushed: str,
+    json: str,
 ):
     ctx.ensure_object(dict)
-    ctx.obj["modules"] = module
-    ctx.obj["fns"] = fn
-    ctx.obj["statuses"] = status
-    ctx.obj["pushed"] = pushed
+    if json is not None:
+        # we can avoid this load
+        from terra.io import get_nested_artifacts, json_load
 
-    if run_ids is not None:
-        run_ids = map(int, run_ids.split(","))
+        data = json_load(json)
+        run_ids = set([art.run_id for art in get_nested_artifacts(data)])
+        ctx.obj["run_ids"] = run_ids
+    else:
+        ctx.obj["modules"] = module
+        ctx.obj["fns"] = fn
+        ctx.obj["statuses"] = status
+        ctx.obj["pushed"] = pushed
 
-    ctx.obj["run_ids"] = run_ids
+        if run_ids is not None:
+            run_ids = map(int, run_ids.split(","))
 
-    ctx.obj["date_range"] = None
-    date_format = "%m-%d-%Y"
-    if start_date is not None and end_date is not None:
-        ctx.obj["date_range"] = (
-            datetime.strptime(start_date, date_format),
-            datetime.strptime(end_date, date_format),
-        )
+        ctx.obj["run_ids"] = run_ids
+
+        ctx.obj["date_range"] = None
+        date_format = "%m-%d-%Y"
+        if start_date is not None and end_date is not None:
+            ctx.obj["date_range"] = (
+                datetime.strptime(start_date, date_format),
+                datetime.strptime(end_date, date_format),
+            )
 
 
 @cli.command()
 def config():
     import json
+
     print(f"config path: {config_path}")
     print(json.dumps(TERRA_CONFIG, indent=4))
 
@@ -116,7 +126,7 @@ def ls(ctx, limit: int):
 
 
 def _rm_dir(run_dir):
-    run_dir = to_abs_path(run_dir) 
+    run_dir = to_abs_path(run_dir)
     if run_dir is None:
         return
     try:
@@ -160,15 +170,15 @@ def rm_local(ctx, num_workers: int, exclude_run_ids: str):
     else:
         [_rm_dir(run_dir) for run_dir in tqdm(run_dirs)]
 
-    
+
 @cli.command()
-@click.option("--force", "-f",  is_flag=True, default=False)
+@click.option("--force", "-f", is_flag=True, default=False)
 @click.option("--interactive", "-i", is_flag=True, default=False)
 @click.pass_context
 def du(ctx, force: bool, interactive: bool):
     from terra.settings import TERRA_CONFIG
     from tqdm import tqdm
-    import pandas as pd 
+    import pandas as pd
 
     SCHEMA = ["id", "size_bytes", "local"]
 
@@ -197,31 +207,30 @@ def du(ctx, force: bool, interactive: bool):
         print("Running `du` for {} runs".format(len(todo_df)))
         for _, run in tqdm(todo_df.iterrows(), total=len(todo_df)):
             row = {"id": run["id"]}
-            
+
             if run["run_dir"] is None:
-                run_dir = None 
+                run_dir = None
             else:
                 run_dir = to_abs_path(run["run_dir"])
             if run_dir is None or not os.path.exists(run_dir):
                 row["local"] = False
                 row["size_bytes"] = 0
-            else:   
-                # get size of directory using du 
+            else:
+                # get size of directory using du
                 out = subprocess.check_output(["du", "-s", run_dir])
                 size_bytes = int(out.decode("utf-8").split("\t")[0])
-                row["size_bytes"] = size_bytes  
+                row["size_bytes"] = size_bytes
                 row["local"] = True
             rows.append(row)
-    
+
     df = pd.DataFrame(rows)
 
-    # need to make sure we don't write duplicate runs to the cache 
+    # need to make sure we don't write duplicate runs to the cache
     new_cache_df = pd.concat([df, cache_df[~cache_df["id"].isin(df["id"])]], axis=0)
     assert new_cache_df["id"].is_unique
     new_cache_df.to_csv(cache_path, index=False)
 
     df = df.merge(run_df, on="id")
-
 
     print(
         "\n"
@@ -235,8 +244,10 @@ def du(ctx, force: bool, interactive: bool):
 
     if interactive:
         import code
-        code.interact(banner="Run sizes are stored in the `df` variable:", local=locals())
 
+        code.interact(
+            banner="Run sizes are stored in the `df` variable:", local=locals()
+        )
 
 
 @cli.command()
@@ -319,7 +330,7 @@ def init(git_dir: str, storage_dir: str):
             "'TERRA_CONFIG_PATH' environment variable already set."
             "Skipping initialization."
         )
-        #return
+        # return
 
     from terra.settings import TERRA_CONFIG
 
@@ -459,5 +470,3 @@ def _write_slurm_sh(sh_path, slurm_config, module, fn):
 
     # need to provide execute permissions to the user
     subprocess.call(["chmod", "+rx", sh_path])
-
-

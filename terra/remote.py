@@ -2,10 +2,11 @@ import multiprocessing as mp
 import os
 import re
 import subprocess
-import tempfile
+import io
 from datetime import datetime
 from logging import warn
-from typing import Collection, List, Tuple, Union
+from typing import Collection, List, Tuple, Union, Any
+import tarfile
 
 from tqdm import tqdm
 
@@ -18,31 +19,49 @@ storage = LazyLoader("google.cloud.storage")
 exceptions = LazyLoader("google.cloud.exceptions")
 
 
-def _upload_dir_to_gcs(local_path: str, bucket_name: str, gcs_path: str):
-    client = storage.Client()
-    bucket = client.get_bucket(bucket_name)
+def _upload_dir_to_gcs(
+    local_path: str,
+    gcs_path: str,
+    bucket: Any = None,
+    bucket_name: str = None,
+    compress: bool = False,
+):
+    if (bucket is None) == (bucket_name is None):
+        raise ValueError("Either `bucket` or `bucket_name` must be specified.")
+
+    if bucket is None:
+        client = storage.Client()
+        bucket = client.get_bucket(bucket_name)
+
     assert os.path.isdir(local_path)
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tarball_path = os.path.join(tmp_dir, "run.tar.gz")
-        subprocess.call(
-            ["tar", "-czf", tarball_path, "-C", TERRA_CONFIG["storage_dir"], gcs_path]
-        )
+    tarball = io.BytesIO()
+    with tarfile.open(fileobj=tarball, mode="w:gz" if compress else "w:") as tar:
+        tar.add(local_path, arcname=os.path.basename(local_path), recursive=True)
         remote_path = gcs_path + ".tar.gz"
         blob = bucket.blob(remote_path)
-        blob.upload_from_filename(tarball_path)
+        blob.upload_from_file(tarball, rewind=True)
 
 
-def _download_dir_from_gcs(local_path: str, bucket_name: str, gcs_path: str):
-    storage_client = storage.Client()
-    bucket = storage_client.get_bucket(bucket_name)
+def _download_dir_from_gcs(
+    local_path: str, gcs_path: str, bucket: Any = None, bucket_name: str = None
+):
+    if (bucket is None) == (bucket_name is None):
+        raise ValueError("Either `bucket` or `bucket_name` must be specified.")
+
+    if bucket is None:
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
     gcs_path + ".tar.gz"
     blob = bucket.blob(gcs_path + ".tar.gz")
 
-    tarball_path = local_path + ".tar.gz"
-    os.makedirs(os.path.dirname(tarball_path), exist_ok=True)
-    blob.download_to_filename(tarball_path)
-    subprocess.call(["tar", "-xzf", tarball_path, "-C", TERRA_CONFIG["storage_dir"]])
+    os.makedirs(local_path, exist_ok=True)
+
+    tarball = io.BytesIO()
+    blob.download_to_file(tarball)
+    tarball.seek(0)  # need to rewind the buffer for tarfile to read it
+    with tarfile.open(fileobj=tarball, mode="r:") as tar:
+        tar.extractall(path=os.path.dirname(local_path))
 
 
 def _get_pushed_run_ids(bucket_name: str):
@@ -86,13 +105,18 @@ def push(
         pool = mp.Pool(processes=num_workers)
         async_results = []
 
-    for run in tqdm(runs):
+    client = storage.Client()
+    bucket = client.get_bucket(bucket_name)
+
+    for idx, run in enumerate(runs):
         if run.status == "in_progress":
-            warn(f"Skipping run_id={run.id} because the run's in progress.")
+            warn(
+                f"({idx}/{len(runs)}) Skipping run_id={run.id} because the run's in progress."
+            )
             continue
         if not force and (run.id in pushed_run_ids):
             print(
-                f'Skipping run_id={run.id}, already pushed to bucket "{bucket_name}".'
+                f'({idx}/{len(runs)}) Skipping run_id={run.id}, already pushed to bucket "{bucket_name}".'
             )
             continue
         if run.run_dir is None:
@@ -112,16 +136,18 @@ def push(
                 func=_upload_dir_to_gcs,
                 kwds=dict(
                     local_path=abs_path,
-                    bucket_name=bucket_name,
+                    bucket=bucket,
                     gcs_path=rel_path,
                 ),
             )
             async_results.append(result)
         else:
-            print(f'Pushing run_id={run.id} to bucket "{bucket_name}" at "{abs_path}".')
+            print(
+                f'({idx}/{len(runs)}) Pushing run_id={run.id} to bucket "{bucket_name}" at "{abs_path}".'
+            )
             _upload_dir_to_gcs(
                 local_path=abs_path,
-                bucket_name=bucket_name,
+                bucket=bucket,
                 gcs_path=rel_path,
             )
 
@@ -154,6 +180,9 @@ def pull(
         limit=limit,
         df=False,
     )
+
+    client = storage.Client()
+    bucket = client.get_bucket(bucket_name)
     for run in runs:
         if run.status == "in_progress":
             warn(f"Skipping run_id={run.id} because the run's in progress.")
@@ -175,7 +204,7 @@ def pull(
         try:
             _download_dir_from_gcs(
                 local_path=abs_path,
-                bucket_name=bucket_name,
+                bucket=bucket,
                 gcs_path=rel_path,
             )
         except exceptions.NotFound:

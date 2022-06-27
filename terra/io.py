@@ -129,6 +129,23 @@ def load_nested_artifacts(obj: Union[list, dict], run_id: int = None):
         return obj
 
 
+def get_nested_artifacts(obj: Union[list, dict]):
+    if isinstance(obj, list) or isinstance(obj, tuple):
+        arts = []
+        for v in obj:
+            arts.extend(get_nested_artifacts(v))
+        return arts
+    elif isinstance(obj, dict):
+        arts = []
+        for v in obj.values():
+            arts.extend(get_nested_artifacts(v))
+        return arts
+    elif _is_supported_dataclass(obj):
+        return get_nested_artifacts(obj.__dict__)
+    elif isinstance(obj, Artifact):
+        return [obj]
+    return []
+
 def get_nested_artifact_paths(obj: Union[list, dict]):
     if isinstance(obj, list) or isinstance(obj, tuple):
         arts = []
