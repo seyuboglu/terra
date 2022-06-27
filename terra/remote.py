@@ -60,7 +60,7 @@ def _download_dir_from_gcs(
     tarball = io.BytesIO()
     blob.download_to_file(tarball)
     tarball.seek(0)  # need to rewind the buffer for tarfile to read it
-    with tarfile.open(fileobj=tarball, mode="r:") as tar:
+    with tarfile.open(fileobj=tarball, mode="r:*") as tar:
         tar.extractall(path=os.path.dirname(local_path))
 
 
