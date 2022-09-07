@@ -170,6 +170,7 @@ def pull(
     fns: Union[str, List[str]] = None,
     statuses: Union[str, List[str]] = None,
     date_range: Tuple[datetime] = None,
+    pushed: bool = None,
     limit: int = None,
     bucket_name: str = None,
     force: bool = False,
@@ -186,6 +187,7 @@ def pull(
         fns=fns,
         statuses=statuses,
         date_range=date_range,
+        pushed=pushed, 
         limit=limit,
         df=False,
     )

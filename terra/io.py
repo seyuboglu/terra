@@ -17,11 +17,26 @@ import terra.database as tdb
 from terra.utils import ensure_dir_exists, to_abs_path
 
 
-class Artifact:
-    def _get_abs_path(self):
-        abs_run_dir = to_abs_path(self.run_dir)
-        ensure_dir_exists(os.path.join(abs_run_dir, "artifacts"))
-        return os.path.join(abs_run_dir, "artifacts", self.key)
+class Base:
+    def __init__(self, run_dir: str, key: str, type: str, id: int = None):
+        self.run_dir = run_dir
+        self.key = key
+        self.type = type
+        self.id = id
+
+    def __getstate__(self):
+        return {
+            "__run_dir__": self.run_dir,
+            "__key__": self.key,
+            "__type__": self.type,
+            "__id__": self.id,
+        }
+
+    def __setstate__(self, state):
+        self.run_dir = state["__run_dir__"]
+        self.key = state["__key__"]
+        self.id = state["__id__"]
+        self.type = state["__type__"]
 
     def load(self, run_id: int = None):
 
@@ -35,9 +50,23 @@ class Artifact:
 
         return generalized_read(self._get_abs_path(), self.type)
 
+    def __repr__(self):
+        return str(self)
+
+    @property
+    def run_id(self):
+        return int(os.path.basename(self.run_dir))
+
+
+class Artifact(Base):
+    def _get_abs_path(self):
+        abs_run_dir = to_abs_path(self.run_dir)
+        ensure_dir_exists(os.path.join(abs_run_dir, "artifacts"))
+        return os.path.join(abs_run_dir, "artifacts", self.key)
+
     @classmethod
     def dump(cls, value, run_dir: str):
-        artifact = cls()
+        artifact = cls.__new__(cls)
         artifact.run_dir = run_dir
         artifact.key = uuid.uuid4().hex
         artifact.type = type(value)
@@ -68,25 +97,11 @@ class Artifact:
     def serialize(self):
         return self.__getstate__()
 
-    def __getstate__(self):
-        return {
-            "__run_dir__": self.run_dir,
-            "__key__": self.key,
-            "__type__": self.type,
-            "__id__": self.id,
-        }
-
     @classmethod
     def deserialize(cls, dct):
-        artifact = cls()
+        artifact = cls.__new__(cls)
         artifact.__setstate__(dct)
         return artifact
-
-    def __setstate__(self, state):
-        self.run_dir = state["__run_dir__"]
-        self.key = state["__key__"]
-        self.id = state["__id__"]
-        self.type = state["__type__"]
 
     def rm(self):
         path = self._get_abs_path()
@@ -106,12 +121,21 @@ class Artifact:
     def __str__(self):
         return f"Artifact(id={self.id}, run_id={self.run_id}, type={self.type})"
 
-    def __repr__(self):
-        return str(self)
 
-    @property
-    def run_id(self):
-        return int(os.path.basename(self.run_dir))
+class ArtifactRef(Base):
+
+    @classmethod
+    def from_artifact(cls, artifact: Artifact):
+        return cls(
+            run_dir=artifact.run_dir, 
+            key=artifact.key, 
+            type=artifact.type, 
+            id=artifact.id
+        )
+
+    def __str__(self):
+        return f"ArtifactRef(id={self.id}, run_id={self.run_id}, type={self.type})"
+    
 
 
 def load_nested_artifacts(obj: Union[list, dict], run_id: int = None):
@@ -145,6 +169,7 @@ def get_nested_artifacts(obj: Union[list, dict]):
     elif isinstance(obj, Artifact):
         return [obj]
     return []
+
 
 def get_nested_artifact_paths(obj: Union[list, dict]):
     if isinstance(obj, list) or isinstance(obj, tuple):
@@ -210,7 +235,7 @@ class TerraEncoder(json.JSONEncoder):
             dct = obj.__dict__
             dct_keys = set(dct.keys())
             if field_names != dct_keys:
-                # warn if dataclass has new properties 
+                # warn if dataclass has new properties
                 warnings.warn(
                     f"{obj.__class__.__name__} object has properties "
                     f"{dct_keys - field_names} not part of the dataclass. These will "
@@ -221,7 +246,7 @@ class TerraEncoder(json.JSONEncoder):
             return {
                 "__dataclass__": type(obj),
                 # convert to dict without deepcopy performed by dataclasses.asdict
-                "__dict__": dct
+                "__dict__": dct,
             }
         elif isinstance(obj, Artifact):
             return obj.serialize()
@@ -264,8 +289,9 @@ class TerraDecoder(json.JSONDecoder):
             return Artifact.deserialize(dct)
         return dct
 
+
 def _is_supported_dataclass(obj):
-    return dataclasses.is_dataclass(obj) #and obj.__dataclass_params__.frozen
+    return dataclasses.is_dataclass(obj)  # and obj.__dataclass_params__.frozen
 
 
 reader_registry = {}

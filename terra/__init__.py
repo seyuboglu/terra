@@ -49,7 +49,9 @@ class Task:
         self.task_dir = self._get_task_dir(self)
         self.no_dump_args = no_dump_args
         self.no_load_args = no_load_args
-        self.cache_ignored_args = cache_ignored_args if cache_ignored_args is not None else []
+        self.cache_ignored_args = (
+            cache_ignored_args if cache_ignored_args is not None else []
+        )
 
     @classmethod
     def make(
@@ -59,7 +61,12 @@ class Task:
         cache_ignored_args: Collection[str] = None,
     ) -> callable:
         def _make(fn: callable) -> Task:
-            return cls(fn=fn, no_dump_args=no_dump_args, no_load_args=no_load_args, cache_ignored_args=cache_ignored_args)
+            return cls(
+                fn=fn,
+                no_dump_args=no_dump_args,
+                no_load_args=no_load_args,
+                cache_ignored_args=cache_ignored_args,
+            )
 
         return _make
 
@@ -89,46 +96,41 @@ class Task:
     def inp(self, run_id: int = None, load: bool = False):
         from terra.io import json_load, load_nested_artifacts
 
-        if run_id is None:
-            run_id = _get_latest_run_id(self.task_dir)
-        inps = json_load(
-            to_abs_path(
-                os.path.join(
-                    _get_run_dir(task_dir=self.task_dir, idx=run_id), "inputs.json"
-                )
-            )
-        )
-        return load_nested_artifacts(inps) if load else inps
+        return self.get(run_id=run_id, group_name="outputs", load=load, pull=pull)
 
-    def out(self, run_id: int = None, load: bool = False):
+    def out(self, run_id: int = None, load: bool = False, pull: bool = True):
         from terra.io import json_load, load_nested_artifacts
 
         if run_id is None:
             # unsuccessful run_ids won't have an output
             run_id = self._get_latest_successful_run_id()
-        outs = json_load(
-            to_abs_path(
-                os.path.join(
-                    _get_run_dir(task_dir=self.task_dir, idx=run_id), "outputs.json"
-                )
-            )
-        )
+        return self.get(run_id=run_id, group_name="outputs", load=load, pull=pull)
 
-        return load_nested_artifacts(outs) if load else outs
-
-    def get(self, run_id: int = None, group_name: str = "outputs", load: bool = False):
+    def get(
+        self,
+        run_id: int = None,
+        group_name: str = "outputs",
+        load: bool = False,
+        pull: bool = True,
+    ):
         from terra.io import json_load, load_nested_artifacts
 
         if run_id is None:
             run_id = _get_latest_run_id(self.task_dir)
-        artifacts = json_load(
-            to_abs_path(
-                os.path.join(
-                    _get_run_dir(task_dir=self.task_dir, idx=run_id),
-                    f"{group_name}.json",
-                )
+
+        path = to_abs_path(
+            os.path.join(
+                _get_run_dir(task_dir=self.task_dir, idx=run_id),
+                f"{group_name}.json",
             )
         )
+
+        if pull and not os.path.exists(path):
+            from terra.remote import pull
+
+            pull(run_ids=run_id)
+
+        artifacts = json_load(path)
         return load_nested_artifacts(artifacts) if load else artifacts
 
     def get_artifacts(
@@ -244,7 +246,7 @@ class Task:
 
         if TERRA_CONFIG["sort_args_before_hash"]:
             args_to_dump = dict(sorted(args_to_dump.items()))
-            
+
         # check cache for previous run
         if not skip_terra_cache:
             try:
@@ -354,7 +356,7 @@ class Task:
 
             if "run_dir" in args_dict:
                 args_dict["run_dir"] = to_abs_path(run_dir)
-            
+
             if "run_id" in args_dict:
                 args_dict["run_id"] = run_id
 
@@ -398,7 +400,7 @@ class Task:
             run.status = (
                 "interrupted" if isinstance(e, KeyboardInterrupt) else "failure"
             )
-            run.input_hash = input_hash
+            # run.input_hash = input_hash
             run.end_time = datetime.now()
             tdb.safe_commit(session)
             print(msg)
@@ -430,13 +432,16 @@ class Task:
                 raise ValueError(f"Artifact group '{group_name}' already exists.")
 
         json_dump(artifacts, path, run_dir=run_dir)
-    
+
     def _hash_inputs(self, encoded_inputs: str):
         if self.cache_ignored_args is not None:
             from terra.io import TerraDecoder, TerraEncoder, load_nested_artifacts
+
             # TODO: this is hacky, we should avoid having to decode and encode again
             inputs = TerraDecoder().decode(encoded_inputs)
-            encoded_inputs = TerraEncoder().encode({k: v for k,v in inputs.items() if k not in self.cache_ignored_args})
+            encoded_inputs = TerraEncoder().encode(
+                {k: v for k, v in inputs.items() if k not in self.cache_ignored_args}
+            )
 
         return tdb.hash_inputs(encoded_inputs)
 
@@ -456,13 +461,20 @@ def out(run_id: int, load: bool = False):
     return get(run_id=run_id, load=load, group_name="outputs")
 
 
-def get(run_id: int, group_name: str = "outputs", load: bool = False):
-    # TODO: flip the order of `run_id` and groupname in the instance version
+def get(
+    run_id: int, group_name: str = "outputs", load: bool = False, pull: bool = True
+):
     from terra.io import json_load, load_nested_artifacts
 
     run_dir = get_run_dir(run_id)
+    path = to_abs_path(os.path.join(run_dir, f"{group_name}.json"))
+    if pull and not os.path.exists(path):
 
-    artifacts = json_load(to_abs_path(os.path.join(run_dir, f"{group_name}.json")))
+        from terra.remote import pull
+
+        pull(run_ids=run_id)
+
+    artifacts = json_load(path)
     return load_nested_artifacts(artifacts) if load else artifacts
 
 
@@ -478,6 +490,7 @@ def get_log(run_id: int):
     with open(log_path, mode="r") as f:
         return f.read()
 
+
 def get_src(run_id: int):
     run_dir = get_run_dir(run_id)
     return _get_src(run_dir=run_dir)
@@ -491,9 +504,12 @@ def get_meta(run_id: int = None):
     meta = json_load(to_abs_path(os.path.join(run_dir, "meta.json")))
     return meta
 
-def load(obj, run_id: int=None):
+
+def load(obj, run_id: int = None):
     from terra.io import load_nested_artifacts
+
     return load_nested_artifacts(obj, run_id=run_id)
+
 
 def import_file(path: str):
     import importlib.util
