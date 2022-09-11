@@ -8,7 +8,7 @@ import sys
 import traceback
 from datetime import datetime
 from inspect import getcallargs
-from typing import Collection
+from typing import Collection, List
 import __main__
 
 import terra.database as tdb
@@ -248,7 +248,7 @@ class Task:
             args_to_dump = dict(sorted(args_to_dump.items()))
 
         # check cache for previous run
-        if not skip_terra_cache:
+        if not (skip_terra_cache or self.__name__ in forced_tasks):
             try:
                 encoder = TerraEncoder(indent=4)
                 encoded_inputs = encoder.encode(args_to_dump)
@@ -444,6 +444,9 @@ class Task:
             )
 
         return tdb.hash_inputs(encoded_inputs)
+
+global forced_tasks
+forced_tasks: List[str] = []
 
 
 def get_run_dir(run_id: int):

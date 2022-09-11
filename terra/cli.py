@@ -9,11 +9,14 @@ import subprocess
 from datetime import datetime
 from json.decoder import JSONDecodeError
 from multiprocessing import Pool
+import runpy
+from typing import Tuple
 
 import click
 
 import terra.database as tdb
 from terra import Task, load
+import terra 
 from terra.settings import TERRA_CONFIG, config_path
 from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
 
@@ -84,7 +87,13 @@ def config():
 def push(ctx, bucket_name: str, force: bool, num_workers: int, warn_missing: bool):
     from terra.remote import push
 
-    push(**ctx.obj, bucket_name=bucket_name, force=force, num_workers=num_workers, warn_missing=warn_missing)
+    push(
+        **ctx.obj,
+        bucket_name=bucket_name,
+        force=force,
+        num_workers=num_workers,
+        warn_missing=warn_missing,
+    )
 
 
 @cli.command()
@@ -367,107 +376,23 @@ def init(git_dir: str, storage_dir: str):
 
 
 @cli.command()
-@click.argument("module", type=str)
-@click.argument("fn", type=str)
-@click.option("-s", "--slurm", is_flag=True, help="Submit job using sbatch.")
 @click.option(
-    "--srun", is_flag=True, help="Submit job using srun. Must be used with --slurm."
+    "-p", "--path", type=str, help="Run the script at this path.", default=None
 )
-@click.option("-e", "--edit", is_flag=True, help="Edit the config prior to running.")
-def run(module: str, fn: str, slurm: bool, srun: bool, edit: bool):
-    if srun and not slurm:
-        raise ValueError("--srun is only a valid option when using --slurm.")
+@click.option(
+    "-m", "--module", type=str, help="Run the script in this module.", default=None
+)
+@click.option(
+    "-f", "--force", type=str, multiple=True, help="Force run tasks."
+)
+def run(path: str, module: str, force: Tuple[str]):
 
-    module_str, fn_str = module, fn
-    module = importlib.import_module(module_str)
-    fn = getattr(module, fn_str)
+    if (path is None) == (module is None):
+        raise ValueError("Must specify either `--path` or `--module` but not both.")
+    if path is not None:
+        runpy.run_path(path)
+    
+    terra.forced_tasks.extend(force)
 
-    if not isinstance(fn, Task):
-        raise ValueError(
-            f"The function {fn} is not a task. "
-            "Use the `Task` decorator to turn it into a task."
-        )
-
-    task_dir = Task._get_task_dir(fn)
-
-    config_path = os.path.join(task_dir, "config.py")
-    if edit:
-        if not os.path.exists(config_path):
-            _write_config_skeleton(config_path, module_str, fn_str)
-
-        # this can be changed to vi or your preferred editor
-        print("Close config editor to continue...")
-        return_code = subprocess.call(["code", "--wait", config_path])
-        if return_code != 0:
-            print("Using vim instead.")
-            subprocess.call(["vi", config_path])
-    # load config module
-    config = _load_config(config_path)
-
-    if slurm:
-        sh_path = os.path.join(task_dir, f"{fn_str}.sh")
-        _write_slurm_sh(
-            sh_path=sh_path, slurm_config=config["slurm"], module=module_str, fn=fn_str
-        )
-        subprocess.call(["srun" if srun else "sbatch", sh_path])
-
-    else:
-        module = importlib.import_module(config["module"])
-        fn(**config["kwargs"])
-
-
-def _load_config(config_path):
-    """Load config module."""
-    _, ext = os.path.splitext(config_path)
-    if ext == ".py":
-        spec = importlib.util.spec_from_file_location("config", config_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module.config
-
-    else:
-        raise ValueError(f"The config file extension {ext} is not supported.")
-
-
-def _write_config_skeleton(config_path, module, fn):
-    ensure_dir_exists(os.path.split(config_path)[0])
-    with open(config_path, "w") as f:
-        f.write(
-            " # INSTRUCTIONS: Edit process parameters below. Close this file (cmd-w) "
-            " to run the process\n"
-            "import terra\n"
-            f"from {module} import {fn} \n"
-            "\n"
-            "config = {\n"
-            f"   'module': '{module}',\n"
-            f"   'fn': '{fn}',\n"
-            "   'kwargs': {\n"
-            "   }\n"
-            "}\n"
-        )
-        f.flush()
-        f.close()
-
-
-def _write_slurm_sh(sh_path, slurm_config, module, fn):
-    ensure_dir_exists(os.path.split(sh_path)[0])
-    lines = ["#!/bin/bash"]
-    for option, val in slurm_config.items():
-        sep = "=" if option.startswith("--") else " "
-        lines.append(f"#SBATCH {option}{sep}{val}")
-
-    lines.extend(
-        [
-            "source $HOME/.bashrc",
-            "conda activate win",
-            f"cd {os.getcwd()}",
-            f"terra run {module} {fn}",
-        ]
-    )
-    with open(sh_path, "w") as f:
-        f.write("\n".join(lines))
-        f.flush()
-        f.close()
-
-    # need to provide execute permissions to the user
-    subprocess.call(["chmod", "+rx", sh_path])
+    if module is not None:
+        runpy.run_module(module)
