@@ -16,7 +16,7 @@ import click
 
 import terra.database as tdb
 from terra import Task, load
-import terra 
+import terra
 from terra.settings import TERRA_CONFIG, config_path
 from terra.utils import bytes_fmt, ensure_dir_exists, to_abs_path
 
@@ -382,17 +382,20 @@ def init(git_dir: str, storage_dir: str):
 @click.option(
     "-m", "--module", type=str, help="Run the script in this module.", default=None
 )
+@click.option("-f", "--force", type=str, multiple=True, help="Force run tasks.")
 @click.option(
-    "-f", "--force", type=str, multiple=True, help="Force run tasks."
+    "--push", is_flag=True, help="Push the run to the database.", default=False
 )
-def run(path: str, module: str, force: Tuple[str]):
+def run(path: str, module: str, force: Tuple[str], push: bool):
 
     if (path is None) == (module is None):
         raise ValueError("Must specify either `--path` or `--module` but not both.")
+
+    terra.forced_tasks.extend(force)
+    terra.push_runs = push
+
     if path is not None:
         runpy.run_path(path)
-    
-    terra.forced_tasks.extend(force)
 
     if module is not None:
         runpy.run_module(module)

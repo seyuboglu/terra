@@ -268,6 +268,12 @@ class Task:
                     out = self.out(run_id=cache_run_id)
                     if return_run_id:
                         out = (cache_run_id, out) if out is not None else cache_run_id
+                    
+                    if push_runs:
+                        from terra.remote import push
+                        push(
+                            run_ids=cache_run_id
+                        )
                     return out
         else:
             encoded_inputs = None
@@ -410,6 +416,11 @@ class Task:
         if return_run_id:
             out = (int(run_id), out) if out is not None else int(run_id)
         session.close()
+        if push_runs:
+            from terra.remote import push
+            push(
+                run_ids=run_id
+            )
         return out
 
     @staticmethod
@@ -447,6 +458,9 @@ class Task:
 
 global forced_tasks
 forced_tasks: List[str] = []
+
+global push_runs
+push_runs: bool = False
 
 
 def get_run_dir(run_id: int):
