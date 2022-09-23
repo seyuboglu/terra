@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import os
 import re
+import shutil
 import subprocess
 import io
 from datetime import datetime
@@ -55,11 +56,10 @@ def _download_dir_from_gcs(
     gcs_path + ".tar.gz"
     blob = bucket.blob(gcs_path + ".tar.gz")
 
-    os.makedirs(local_path, exist_ok=True)
-
     tarball = io.BytesIO()
     blob.download_to_file(tarball)
     tarball.seek(0)  # need to rewind the buffer for tarfile to read it
+    os.makedirs(local_path, exist_ok=True)
     with tarfile.open(fileobj=tarball, mode="r:*") as tar:
         tar.extractall(path=os.path.dirname(local_path))
 
@@ -81,7 +81,7 @@ def push(
     limit: int = None,
     bucket_name: str = None,
     force: bool = False,
-    warn_missing: bool = False, 
+    warn_missing: bool = False,
     num_workers: bool = 0,
 ):
     if bucket_name is None:
@@ -135,10 +135,9 @@ def push(
             )
             if warn_missing:
                 warn(msg)
-                continue 
+                continue
             else:
                 raise ValueError(msg)
-            
 
         if num_workers > 0:
             result = pool.apply_async(
@@ -187,7 +186,7 @@ def pull(
         fns=fns,
         statuses=statuses,
         date_range=date_range,
-        pushed=pushed, 
+        pushed=pushed,
         limit=limit,
         df=False,
     )

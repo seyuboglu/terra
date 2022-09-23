@@ -386,13 +386,20 @@ def init(git_dir: str, storage_dir: str):
 @click.option(
     "--push", is_flag=True, help="Push the run to the database.", default=False
 )
-def run(path: str, module: str, force: Tuple[str], push: bool):
+@click.option(
+    "--use-local",
+    is_flag=True,
+    help="If can't pull most recent cache hit, use a local cache hit if one exists.",
+    default=False,
+)
+def run(path: str, module: str, force: Tuple[str], push: bool, use_local: bool):
 
     if (path is None) == (module is None):
         raise ValueError("Must specify either `--path` or `--module` but not both.")
 
     terra.forced_tasks.extend(force)
     terra.push_runs = push
+    terra.use_local = use_local
 
     if path is not None:
         runpy.run_path(path)

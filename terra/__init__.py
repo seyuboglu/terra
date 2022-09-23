@@ -462,6 +462,8 @@ forced_tasks: List[str] = []
 global push_runs
 push_runs: bool = False
 
+global use_local
+use_local: bool = False
 
 def get_run_dir(run_id: int):
     runs = tdb.get_runs(run_ids=run_id, df=False)
