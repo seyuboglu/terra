@@ -268,12 +268,11 @@ class Task:
                     out = self.out(run_id=cache_run_id)
                     if return_run_id:
                         out = (cache_run_id, out) if out is not None else cache_run_id
-                    
+
                     if push_runs:
                         from terra.remote import push
-                        push(
-                            run_ids=cache_run_id
-                        )
+
+                        push(run_ids=cache_run_id)
                     return out
         else:
             encoded_inputs = None
@@ -418,9 +417,8 @@ class Task:
         session.close()
         if push_runs:
             from terra.remote import push
-            push(
-                run_ids=run_id
-            )
+
+            push(run_ids=run_id)
         return out
 
     @staticmethod
@@ -456,6 +454,7 @@ class Task:
 
         return tdb.hash_inputs(encoded_inputs)
 
+
 global forced_tasks
 forced_tasks: List[str] = []
 
@@ -464,6 +463,7 @@ push_runs: bool = False
 
 global use_local
 use_local: bool = False
+
 
 def get_run_dir(run_id: int):
     runs = tdb.get_runs(run_ids=run_id, df=False)

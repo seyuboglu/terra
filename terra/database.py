@@ -309,7 +309,8 @@ def hash_inputs(encoded_inputs: str):
 
 
 def check_input_hash(input_hash: str, fn: str, module: str):
-    import terra 
+    import terra
+
     session = Session()
 
     query = (
@@ -330,7 +331,7 @@ def check_input_hash(input_hash: str, fn: str, module: str):
     runs = query.all()
     session.close()
 
-    if len(runs) < 0:
+    if len(runs) == 0:
         return None
 
     for run in runs:
