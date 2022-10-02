@@ -11,6 +11,8 @@ from json.decoder import JSONDecodeError
 from multiprocessing import Pool
 import runpy
 from typing import Tuple
+import sys
+
 
 import click
 
@@ -375,7 +377,7 @@ def init(git_dir: str, storage_dir: str):
     subprocess.call(["conda", "activate", conda_environment])
 
 
-@cli.command()
+@cli.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.option(
     "-p", "--path", type=str, help="Run the script at this path.", default=None
 )
@@ -392,8 +394,8 @@ def init(git_dir: str, storage_dir: str):
     help="If can't pull most recent cache hit, use a local cache hit if one exists.",
     default=False,
 )
-def run(path: str, module: str, force: Tuple[str], push: bool, use_local: bool):
-
+@click.pass_context
+def run(ctx, path: str, module: str, force: Tuple[str], push: bool, use_local: bool):
     if (path is None) == (module is None):
         raise ValueError("Must specify either `--path` or `--module` but not both.")
 
@@ -402,7 +404,7 @@ def run(path: str, module: str, force: Tuple[str], push: bool, use_local: bool):
     terra.use_local = use_local
 
     if path is not None:
-        runpy.run_path(path)
+        runpy.run_path(path, init_globals={"args": ctx.args})
 
     if module is not None:
-        runpy.run_module(module)
+        runpy.run_module(module, init_globals={"args": ctx.args})
