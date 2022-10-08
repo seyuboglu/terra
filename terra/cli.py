@@ -99,10 +99,11 @@ def push(ctx, bucket_name: str, force: bool, num_workers: int, warn_missing: boo
 @cli.command()
 @click.pass_context
 @click.option("--bucket_name", "-b", type=str, default=None)
-def pull(ctx, bucket_name: str):
+@click.option("--force", "-f", is_flag=True, default=False)
+def pull(ctx, bucket_name: str, force: bool):
     from terra.remote import pull
 
-    pull(**ctx.obj, bucket_name=bucket_name)
+    pull(**ctx.obj, force=force, bucket_name=bucket_name)
 
 
 @cli.command()
