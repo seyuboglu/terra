@@ -130,6 +130,12 @@ class Task:
 
             pull(run_ids=run_id)
 
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Run {run_id} does not have a {group_name} group."
+            )
+
+
         artifacts = json_load(path)
         return load_nested_artifacts(artifacts) if load else artifacts
 

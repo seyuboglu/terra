@@ -31,7 +31,7 @@ def _upload_dir_to_gcs(
         raise ValueError("Either `bucket` or `bucket_name` must be specified.")
 
     if bucket is None:
-        client = storage.Client()
+        client = storage.Client(project=TERRA_CONFIG.get("gcp_project", None))
         bucket = client.get_bucket(bucket_name)
 
     assert os.path.isdir(local_path)
@@ -51,7 +51,7 @@ def _download_dir_from_gcs(
         raise ValueError("Either `bucket` or `bucket_name` must be specified.")
 
     if bucket is None:
-        storage_client = storage.Client()
+        storage_client = storage.Client(project=TERRA_CONFIG.get("gcp_project", None))
         bucket = storage_client.get_bucket(bucket_name)
     gcs_path + ".tar.gz"
     blob = bucket.blob(gcs_path + ".tar.gz")
@@ -65,7 +65,7 @@ def _download_dir_from_gcs(
 
 
 def _get_pushed_run_ids(bucket_name: str):
-    storage_client = storage.Client()
+    storage_client = storage.Client(project=TERRA_CONFIG.get("gcp_project", None))
     bucket = storage_client.get_bucket(bucket_name)
     blobs = " ".join(blob.name for blob in bucket.list_blobs())
     return set(map(int, re.findall(r"_runs\/(\d+).tar.gz", blobs)))
@@ -108,7 +108,7 @@ def push(
         pool = mp.Pool(processes=num_workers)
         async_results = []
 
-    client = storage.Client()
+    client = storage.Client(project=TERRA_CONFIG.get("gcp_project", None))
     bucket = client.get_bucket(bucket_name)
 
     for idx, run in enumerate(runs):
@@ -191,7 +191,7 @@ def pull(
         df=False,
     )
 
-    client = storage.Client()
+    client = storage.Client(project=TERRA_CONFIG.get("gcp_project", None))
     bucket = client.get_bucket(bucket_name)
     for run in runs:
         if run.status == "in_progress":
