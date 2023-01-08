@@ -61,7 +61,26 @@ def _download_dir_from_gcs(
     tarball.seek(0)  # need to rewind the buffer for tarfile to read it
     os.makedirs(local_path, exist_ok=True)
     with tarfile.open(fileobj=tarball, mode="r:*") as tar:
-        tar.extractall(path=os.path.dirname(local_path))
+        def is_within_directory(directory, target):
+            
+            abs_directory = os.path.abspath(directory)
+            abs_target = os.path.abspath(target)
+        
+            prefix = os.path.commonprefix([abs_directory, abs_target])
+            
+            return prefix == abs_directory
+        
+        def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+        
+            for member in tar.getmembers():
+                member_path = os.path.join(path, member.name)
+                if not is_within_directory(path, member_path):
+                    raise Exception("Attempted Path Traversal in Tar File")
+        
+            tar.extractall(path, members, numeric_owner) 
+            
+        
+        safe_extract(tar, path=os.path.dirname(local_path))
 
 
 def _get_pushed_run_ids(bucket_name: str):
