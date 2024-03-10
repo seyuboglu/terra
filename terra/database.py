@@ -249,12 +249,16 @@ def rm_runs(run_ids: Union[int, List[int]]):
 
 
 def _init_google_cloud_sql_engine() -> sqlalchemy.engine.Engine:
-    from google.cloud.sql.connector import connector
+    from google.cloud.sql.connector import Connector
 
     if TERRA_CONFIG.get("cloud_sql_connection", None) is None:
         raise ValueError(
             "Must provide `cloud_sql_connection` in config if using `local_db=False`"
         )
+    
+
+    # initialize Connector object
+    connector = Connector()
 
     def getconn():
         conn = connector.connect(

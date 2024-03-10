@@ -8,6 +8,8 @@ slurm_test.sh
 terra_storage
 remote-terra-config.json
 service_account_key.json
+**.feather
+**.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

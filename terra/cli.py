@@ -1,6 +1,7 @@
 """
 """
 import importlib
+import json
 from multiprocessing.sharedctypes import Value
 import os
 import pydoc
@@ -120,6 +121,7 @@ def ls(ctx, limit: int):
         print("Query returned no tasks.")
         return
     df = pd.DataFrame([run.__dict__ for run in runs])
+    df["run_dir"] = df["run_dir"].apply(lambda x: terra.to_abs_path(x))
     pydoc.pipepager(
         df[
             [
@@ -367,16 +369,12 @@ def init(git_dir: str, storage_dir: str):
 
     config["local_db"] = True
 
-    conda_environment = os.environ.get("CONDA_DEFAULT_ENV", None)
-    if conda_environment is None or conda_environment == "base":
-        raise ValueError(
-            "Create and activate a conda environment before running `terra init`."
-        )
-
     config_path = os.path.join(git_dir, "terra-config.json")
-    subprocess.call(["conda", f"env config vars set TERRA_CONFIG_PATH={config_path}"])
-    subprocess.call(["conda", "activate", conda_environment])
+    # subprocess.call(["conda", f"env config vars set TERRA_CONFIG_PATH={config_path}"])
+    subprocess.call(["conda", "env", "config", "vars", "set", f"TERRA_CONFIG_PATH={config_path}"])
 
+
+    json.dump(config, open(config_path, "w"), indent=4)
 
 @cli.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.option(
@@ -405,7 +403,7 @@ def run(ctx, path: str, module: str, force: Tuple[str], push: bool, use_local: b
     terra.use_local = use_local
 
     if path is not None:
-        runpy.run_path(path, init_globals={"args": ctx.args})
+        runpy.run_path(path, init_globals={"args": ctx.args}, run_name="__main__")
 
     if module is not None:
-        runpy.run_module(module, init_globals={"args": ctx.args})
+        runpy.run_module(module, init_globals={"args": ctx.args}, run_name="__main__")

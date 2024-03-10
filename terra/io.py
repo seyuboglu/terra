@@ -9,9 +9,9 @@ from functools import lru_cache
 from typing import Union
 import warnings
 
-import meerkat as mk
+# import meerkat as mk
 import numpy as np
-from pandas import DataFrame, read_csv
+from pandas import DataFrame, read_feather
 
 import terra.database as tdb
 from terra.utils import ensure_dir_exists, to_abs_path
@@ -307,6 +307,7 @@ def reader(read_type: type):
 
 @lru_cache
 def generalized_read(path, read_type: type):
+
     if hasattr(read_type, "__terra_read__"):
         return read_type.__terra_read__(path)
 
@@ -349,13 +350,13 @@ def generalized_write(out, path):
 
 @writer(DataFrame)
 def write_dataframe(out, path):
-    out.to_csv(path, index=False)
+    out.reset_index(drop=True).to_feather(path)
     return path
 
 
 @reader(DataFrame)
 def read_dataframe(path):
-    return read_csv(path)
+    return read_feather(path)
 
 
 @writer(np.ndarray)
@@ -370,12 +371,12 @@ def read_nparray(path):
     return np.load(path, allow_pickle=True)
 
 
-@writer(mk.DataPanel)
+# @writer(mk.DataPanel)
 def write_datapanel(out, path):
     out.write(path)
     return path
 
 
-@reader(mk.DataPanel)
+# @reader(mk.DataPanel)
 def read_datapanel(path):
     return mk.DataPanel.read(path)

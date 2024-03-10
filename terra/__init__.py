@@ -41,8 +41,10 @@ class Task:
         self.fn = fn
         self.__qualname__ = fn.__qualname__
         self.__name__ = fn.__name__
-        if fn.__module__ == "__main__" and hasattr(__main__, "__file__"):
-            self.__module__ = to_rel_path_from_git(__main__.__file__)
+        if (fn.__module__ == "__main__" or fn.__module__ == "<run_path>") and hasattr(
+            __main__, "__file__"
+        ):
+            self.__module__ = to_rel_path_from_git(sys.argv[0])
         else:
             self.__module__ = fn.__module__
 
@@ -131,10 +133,7 @@ class Task:
             pull(run_ids=run_id)
 
         if not os.path.exists(path):
-            raise FileNotFoundError(
-                f"Run {run_id} does not have a {group_name} group."
-            )
-
+            raise FileNotFoundError(f"Run {run_id} does not have a {group_name} group.")
 
         artifacts = json_load(path)
         return load_nested_artifacts(artifacts) if load else artifacts
@@ -388,7 +387,13 @@ class Task:
                 args_dict = load_nested_artifacts(args_dict, run_id=run_id)
 
             # run function
-            out = self.fn(**args_dict)
+            if "args" in args_dict:
+                args = args_dict.pop(
+                    "args"
+                )  # TODO: figure out how to pass this appropriately
+                out = self.fn(*args, **args_dict)
+            else:
+                out = self.fn(**args_dict)
 
             # write outputs
             if out is not None:
@@ -561,7 +566,6 @@ def _get_task_dir(module_name: str, fn_name: str):
         "default_package"
     ]:
         module = module[1:]
-
     task_dir = os.path.join(
         "tasks",
         *module,
